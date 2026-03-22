@@ -6,6 +6,7 @@ frontend/.next
 frontend/node_modules
 frontend/.env.local
 frontend/*.tsbuildinfo
+frontend/*.log
 
 backend/.pytest_cache
 backend/.venv
