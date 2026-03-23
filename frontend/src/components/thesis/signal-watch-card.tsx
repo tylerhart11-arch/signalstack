@@ -17,7 +17,7 @@ export function SignalWatchCard({
       <div className="space-y-3">
         {items.length ? (
           items.map((item) => (
-            <div key={`${title}-${item.name}`} className="rounded-2xl border border-shell-border bg-black/10 p-4">
+            <div key={`${title}-${item.name}`} className="rounded-[22px] border border-shell-border bg-white/[0.03] p-4">
               <h3 className="text-sm font-semibold text-shell-text">{item.name}</h3>
               <p className="mt-2 text-sm leading-6 text-shell-muted">{item.rationale}</p>
             </div>

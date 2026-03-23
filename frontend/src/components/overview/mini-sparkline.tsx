@@ -1,6 +1,6 @@
 export function MiniSparkline({ values }: { values: number[] }) {
   if (!values.length) {
-    return <div className="h-14 rounded-2xl border border-dashed border-shell-border bg-black/10" />;
+    return <div className="h-20 rounded-[22px] border border-dashed border-shell-border bg-white/[0.03]" />;
   }
 
   const min = Math.min(...values);
@@ -14,10 +14,17 @@ export function MiniSparkline({ values }: { values: number[] }) {
     })
     .join(" ");
 
+  const last = values[values.length - 1];
+  const lastX = 100;
+  const lastY = 100 - ((last - min) / spread) * 100;
+  const areaPoints = `0,100 ${points} 100,100`;
+
   return (
-    <div className="h-14 overflow-hidden rounded-2xl border border-shell-border bg-black/10 p-2">
+    <div className="h-20 overflow-hidden rounded-[22px] border border-shell-border bg-white/[0.03] p-3">
       <svg viewBox="0 0 100 100" preserveAspectRatio="none" className="h-full w-full">
-        <polyline fill="none" stroke="rgba(59,200,255,0.95)" strokeWidth="3" points={points} />
+        <polygon fill="rgba(90, 200, 250, 0.08)" points={areaPoints} />
+        <polyline fill="none" stroke="rgba(90, 200, 250, 0.95)" strokeWidth="3" points={points} />
+        <circle cx={lastX} cy={lastY} r="4" fill="rgba(125, 224, 212, 0.95)" />
       </svg>
     </div>
   );

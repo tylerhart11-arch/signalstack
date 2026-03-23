@@ -4,19 +4,22 @@
 
 :root {
   color-scheme: dark;
-  --font-sans: "Segoe UI", "Inter", system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
-  --font-mono: "Consolas", "IBM Plex Mono", "SFMono-Regular", ui-monospace, monospace;
 }
 
 html {
   scroll-behavior: smooth;
+  background:
+    radial-gradient(circle at top, rgba(90, 200, 250, 0.08), transparent 28%),
+    radial-gradient(circle at bottom right, rgba(125, 224, 212, 0.08), transparent 22%),
+    #07111b;
 }
 
 body {
   min-height: 100vh;
-  background: #061018;
+  background: transparent;
   color: #e6f0fa;
   font-family: var(--font-sans);
+  letter-spacing: -0.015em;
 }
 
 * {
@@ -29,21 +32,59 @@ textarea {
   font: inherit;
 }
 
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
 ::-webkit-scrollbar {
   width: 11px;
   height: 11px;
 }
 
 ::-webkit-scrollbar-track {
-  background: rgba(10, 18, 28, 0.7);
+  background: rgba(8, 18, 30, 0.72);
 }
 
 ::-webkit-scrollbar-thumb {
   border-radius: 999px;
-  border: 2px solid rgba(10, 18, 28, 0.7);
-  background: rgba(86, 119, 151, 0.55);
+  border: 2px solid rgba(8, 18, 30, 0.72);
+  background: rgba(96, 130, 161, 0.55);
 }
 
 ::selection {
-  background: rgba(59, 200, 255, 0.22);
+  background: rgba(90, 200, 250, 0.22);
+}
+
+:focus-visible {
+  outline: 2px solid rgba(90, 200, 250, 0.55);
+  outline-offset: 2px;
+}
+
+[data-shell-panel="true"] {
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.02), transparent 22%),
+    rgba(15, 27, 43, 0.88);
+}
+
+[data-shell-grid="true"] {
+  background-image:
+    linear-gradient(rgba(132, 161, 189, 0.08) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(132, 161, 189, 0.08) 1px, transparent 1px);
+  background-size: 48px 48px;
+}
+
+@keyframes fade-up {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-fade-up {
+  animation: fade-up 380ms ease-out both;
 }
