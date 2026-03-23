@@ -20,7 +20,7 @@ export function ExposureCard({
       <div className="space-y-3">
         {items.length ? (
           items.map((item) => (
-            <div key={`${title}-${item.name}-${"symbol" in item ? item.symbol ?? "" : ""}`} className="rounded-2xl border border-shell-border bg-black/10 p-4">
+            <div key={`${title}-${item.name}-${"symbol" in item ? item.symbol ?? "" : ""}`} className="rounded-[22px] border border-shell-border bg-white/[0.03] p-4">
               <div className="flex flex-wrap items-center gap-2">
                 <h3 className="text-sm font-semibold text-shell-text">{item.name}</h3>
                 {"symbol" in item && item.symbol ? <Badge tone="accent">{item.symbol}</Badge> : null}

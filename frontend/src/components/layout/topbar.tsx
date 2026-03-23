@@ -1,53 +1,48 @@
 "use client";
 
-import Link from "next/link";
 import { usePathname } from "next/navigation";
 
 import { navigation } from "@/lib/constants";
 
-export function Topbar() {
+export function Topbar({ onOpenNav }: { onOpenNav: () => void }) {
   const pathname = usePathname();
-  const active = navigation.find((item) => pathname.startsWith(item.href) || (pathname === "/" && item.href === "/overview"));
+  const active =
+    navigation.find((item) => {
+      if (item.href === "/") {
+        return pathname === "/";
+      }
+      return pathname === item.href || pathname.startsWith(`${item.href}/`);
+    }) ?? navigation[0];
 
   return (
-    <>
-      <div className="hidden border-b border-shell-border/70 bg-black/25 px-8 py-3 font-mono text-[11px] uppercase tracking-[0.2em] text-shell-muted lg:flex lg:items-center lg:justify-between">
-        <div className="flex items-center gap-6">
-          <span className="text-shell-accent">Module {active?.shortLabel ?? "Overview"}</span>
-          <span>Regime Engine Online</span>
-          <span>Anomaly Scanner Ready</span>
-          <span>Demo Fallback Enabled</span>
-        </div>
-        <span>Local-First Analyst Workflow</span>
-      </div>
-
-      <div className="sticky top-0 z-20 border-b border-shell-border/70 bg-shell-bg/92 px-4 py-4 backdrop-blur lg:hidden">
-        <div className="mb-3 flex items-center justify-between gap-3">
-          <div>
-            <p className="text-[10px] uppercase tracking-[0.24em] text-shell-accent">SignalStack</p>
-            <p className="text-base font-semibold text-shell-text">{active?.label ?? "Overview"}</p>
+    <div className="sticky top-0 z-20 flex items-center justify-between gap-4 rounded-t-[32px] border-b border-shell-border bg-shell-frame/92 px-4 py-4 backdrop-blur-xl sm:px-6 lg:px-8">
+      <div className="flex items-center gap-3">
+        <button
+          type="button"
+          onClick={onOpenNav}
+          className="rounded-full border border-shell-border bg-white/[0.03] px-3 py-2 text-xs font-medium uppercase tracking-[0.18em] text-shell-muted lg:hidden"
+        >
+          Menu
+        </button>
+        <div>
+          <p className="text-[11px] uppercase tracking-[0.24em] text-shell-accent">Active Module</p>
+          <div className="mt-1 flex flex-wrap items-center gap-3">
+            <h2 className="text-lg font-semibold tracking-[-0.02em] text-shell-text">{active.label}</h2>
+            <p className="hidden text-sm text-shell-muted sm:block">{active.description}</p>
           </div>
-          <span className="rounded-full border border-shell-success/30 bg-shell-success/10 px-3 py-1 text-[11px] uppercase tracking-[0.16em] text-shell-success">
-            Ready
-          </span>
-        </div>
-        <div className="flex gap-2 overflow-x-auto pb-1">
-          {navigation.map((item) => (
-            <Link
-              key={item.href}
-              href={item.href}
-              className={[
-                "whitespace-nowrap rounded-full border px-3 py-2 text-xs",
-                pathname.startsWith(item.href) || (pathname === "/" && item.href === "/overview")
-                  ? "border-shell-accent/35 bg-shell-accent/10 text-shell-text"
-                  : "border-shell-border text-shell-muted",
-              ].join(" ")}
-            >
-              {item.shortLabel}
-            </Link>
-          ))}
         </div>
       </div>
-    </>
+      <div className="hidden items-center gap-3 lg:flex">
+        <span className="rounded-full border border-shell-success/30 bg-shell-success/10 px-3 py-1 text-[11px] uppercase tracking-[0.16em] text-shell-success">
+          Ready
+        </span>
+        <span className="rounded-full border border-shell-border px-3 py-1 text-[11px] uppercase tracking-[0.16em] text-shell-muted">
+          Local-first
+        </span>
+        <span className="rounded-full border border-shell-accent/25 bg-shell-accent/10 px-3 py-1 text-[11px] uppercase tracking-[0.16em] text-shell-accent">
+          Premium dashboard refresh
+        </span>
+      </div>
+    </div>
   );
 }

@@ -11,7 +11,7 @@ export function DriverList({ current }: { current: RegimeCurrentResponse }) {
       <Card title="Top Drivers" eyebrow="Why This Regime Is Winning">
         <div className="space-y-4">
           {current.drivers.map((driver) => (
-            <div key={driver.label} className="rounded-2xl border border-shell-border bg-black/10 p-4">
+            <div key={driver.label} className="rounded-[22px] border border-shell-border bg-white/[0.03] p-4">
               <div className="flex items-center justify-between gap-3">
                 <h3 className="text-sm font-semibold text-shell-text">{driver.label}</h3>
                 <Badge tone="neutral">Weight {driver.weight.toFixed(1)}</Badge>
@@ -33,7 +33,7 @@ export function DriverList({ current }: { current: RegimeCurrentResponse }) {
                   <span className="text-sm capitalize text-shell-text">{metricLabel(label)}</span>
                   <span className="font-mono text-sm text-shell-muted">{score.toFixed(2)}</span>
                 </div>
-                <div className="relative h-2 rounded-full bg-white/5">
+                <div className="relative h-2 rounded-full bg-white/[0.05]">
                   <div className="absolute inset-y-0 left-1/2 w-px bg-shell-border" />
                   <div
                     className={[

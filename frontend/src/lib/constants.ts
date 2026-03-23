@@ -2,6 +2,12 @@ import { NavigationItem } from "@/lib/types";
 
 export const navigation: NavigationItem[] = [
   {
+    href: "/",
+    label: "Home",
+    shortLabel: "Home",
+    description: "Cross-module command center for the current market picture and next actions.",
+  },
+  {
     href: "/overview",
     label: "Overview",
     shortLabel: "Overview",
@@ -15,8 +21,8 @@ export const navigation: NavigationItem[] = [
   },
   {
     href: "/feed",
-    label: "Curiosity Feed",
-    shortLabel: "Feed",
+    label: "Anomalies",
+    shortLabel: "Anomalies",
     description: "Ranked anomaly tape for cross-asset inconsistencies worth investigating.",
   },
   {

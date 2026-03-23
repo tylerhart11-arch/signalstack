@@ -12,7 +12,7 @@ export function MarketSummary({ data }: { data: OverviewResponse }) {
   return (
     <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
       {items.map((item) => (
-        <Card key={item.label} title={item.value} eyebrow={item.label}>
+        <Card key={item.label} title={item.value} eyebrow={item.label} className="overflow-hidden">
           <p className="text-sm leading-6 text-shell-muted">{item.note}</p>
         </Card>
       ))}
