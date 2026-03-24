@@ -164,6 +164,17 @@ class DataRefreshService:
         return transformed
 
 
+def refresh_application_data(
+    settings: Settings | None = None,
+    as_of: date | datetime | None = None,
+) -> str:
+    active_settings = settings or get_settings()
+    with SessionLocal() as session:
+        source_summary = DataRefreshService(settings=active_settings).refresh(session=session, as_of=as_of)
+        hydrate_derived_tables(session=session)
+    return source_summary
+
+
 def bootstrap_application() -> None:
     Base.metadata.create_all(bind=engine)
     settings = get_settings()

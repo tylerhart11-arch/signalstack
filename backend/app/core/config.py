@@ -14,6 +14,21 @@ class Settings(BaseSettings):
     )
     use_demo_data: bool = Field(default=True, validation_alias="SIGNALSTACK_USE_DEMO_DATA")
     refresh_on_startup: bool = Field(default=True, validation_alias="SIGNALSTACK_REFRESH_ON_STARTUP")
+    background_refresh_enabled: bool = Field(
+        default=True,
+        validation_alias="SIGNALSTACK_BACKGROUND_REFRESH_ENABLED",
+    )
+    refresh_interval_hours: int = Field(
+        default=1,
+        validation_alias="SIGNALSTACK_REFRESH_INTERVAL_HOURS",
+        ge=1,
+    )
+    exchange_calendar: str | None = Field(default="XNYS", validation_alias="SIGNALSTACK_EXCHANGE_CALENDAR")
+    market_timezone: str = Field(default="America/New_York", validation_alias="SIGNALSTACK_MARKET_TIMEZONE")
+    market_open_hour: int = Field(default=9, validation_alias="SIGNALSTACK_MARKET_OPEN_HOUR", ge=0, le=23)
+    market_open_minute: int = Field(default=30, validation_alias="SIGNALSTACK_MARKET_OPEN_MINUTE", ge=0, le=59)
+    market_close_hour: int = Field(default=16, validation_alias="SIGNALSTACK_MARKET_CLOSE_HOUR", ge=0, le=23)
+    market_close_minute: int = Field(default=0, validation_alias="SIGNALSTACK_MARKET_CLOSE_MINUTE", ge=0, le=59)
     market_lookback_days: int = Field(default=160, validation_alias="SIGNALSTACK_MARKET_LOOKBACK_DAYS")
     fred_api_key: str | None = Field(default=None, validation_alias="FRED_API_KEY")
 

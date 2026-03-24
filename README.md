@@ -83,6 +83,7 @@ Database:
 
 - Business logic lives in backend services and engines, not in route handlers.
 - Live data is loaded per series with demo fallback, so one failed provider does not blank the whole app.
+- The backend refreshes on startup and can also refresh itself hourly during market hours, honoring NYSE holidays and early closes when `SIGNALSTACK_EXCHANGE_CALENDAR=XNYS`.
 - The frontend API layer also falls back to realistic mock responses if the backend is unavailable.
 - The regime, anomaly, and thesis engines are intentionally transparent so you can edit the logic directly.
 

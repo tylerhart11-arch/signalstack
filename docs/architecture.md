@@ -39,6 +39,7 @@ Engines contain the decision logic and can evolve independently from the API:
 - `providers/`: live source adapters and deterministic demo data
 - `mappers/`: indicator definitions and series metadata
 - `refresh.py`: blended live/demo refresh plus derived-table hydration
+- `scheduler.py`: optional background loop for market-hours refresh while the API is running, with exchange-calendar support for holidays and half-days
 
 ## Frontend Design
 
