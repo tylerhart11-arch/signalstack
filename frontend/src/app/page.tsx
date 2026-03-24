@@ -3,18 +3,20 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 
+import { StaleDataBanner } from "@/components/system/stale-data-banner";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { LoadingPanel } from "@/components/ui/loading-panel";
 import { SectionHeader } from "@/components/ui/section-header";
-import { getAnomalies, getCurrentRegime, getOverview, getSavedTheses } from "@/lib/api";
+import { getAnomalies, getCurrentRegime, getOverview, getRefreshStatus, getSavedTheses } from "@/lib/api";
 import { formatTimestamp, severityLabel } from "@/lib/format";
 import { thesisSamples } from "@/lib/constants";
-import { AnomalyResponse, OverviewResponse, RegimeCurrentResponse, SavedThesisResponse } from "@/lib/types";
+import { AnomalyResponse, OverviewResponse, RefreshStatusResponse, RegimeCurrentResponse, SavedThesisResponse } from "@/lib/types";
 
 type HomeData = {
   anomalies: AnomalyResponse;
   overview: OverviewResponse;
+  refreshStatus: RefreshStatusResponse;
   regime: RegimeCurrentResponse;
   saved: SavedThesisResponse[];
 };
@@ -27,14 +29,15 @@ export default function HomePage() {
 
   useEffect(() => {
     async function bootstrap() {
-      const [overview, regime, anomalies, saved] = await Promise.all([
+      const [overview, regime, anomalies, saved, refreshStatus] = await Promise.all([
         getOverview(),
         getCurrentRegime(),
         getAnomalies(),
         getSavedTheses(),
+        getRefreshStatus(),
       ]);
 
-      setData({ overview, regime, anomalies, saved });
+      setData({ overview, regime, anomalies, saved, refreshStatus });
     }
 
     void bootstrap();
@@ -68,14 +71,28 @@ export default function HomePage() {
         action={
           <>
             <Badge tone="accent">Updated {formatTimestamp(data.overview.as_of)}</Badge>
+            <Badge
+              tone={
+                data.refreshStatus.status === "fresh"
+                  ? "positive"
+                  : data.refreshStatus.status === "stale"
+                    ? "negative"
+                    : "warning"
+              }
+            >
+              {data.refreshStatus.status}
+            </Badge>
             {overviewSources.slice(0, 2).map((source) => (
               <Badge key={source} tone={source.includes("live") ? "positive" : "warning"}>
                 {source}
               </Badge>
             ))}
+            <Badge tone="neutral">{data.refreshStatus.source_summary}</Badge>
           </>
         }
       />
+
+      <StaleDataBanner status={data.refreshStatus} />
 
       <div className="grid gap-6 xl:grid-cols-[1.2fr_0.8fr]">
         <Card title="Today&apos;s Market Pulse" eyebrow="Daily starting point">

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from dataclasses import dataclass
 from datetime import UTC, date, datetime
 
 from sqlalchemy import delete, func, select
@@ -7,6 +8,7 @@ from sqlalchemy.orm import Session
 
 from app.core.config import Settings, get_settings
 from app.core.database import Base, SessionLocal, engine
+from app.data.freshness import max_staleness_days
 from app.data.mappers.indicator_mapper import INDICATOR_DEFINITIONS, INDICATOR_MAP
 from app.data.providers.demo_provider import SeriesPoint, generate_demo_history
 from app.data.providers.fred_provider import FredProvider
@@ -14,12 +16,24 @@ from app.data.providers.market_provider import MarketProvider
 from app.engines.anomaly_engine import AnomalyContext, AnomalyEngine
 from app.engines.regime_engine import RegimeEngine
 from app.engines.thesis_engine import ThesisEngine
+from app.models.alert_config import AlertConfig
+from app.models.alert_event import AlertEvent
 from app.models.anomaly_item import AnomalyItem
 from app.models.indicator_snapshot import IndicatorSnapshot
+from app.models.refresh_run import RefreshRun
 from app.models.regime_history import RegimeHistory
 from app.models.saved_thesis import SavedThesis
+from app.services.alert_service import AlertService
 from app.services.overview_service import OverviewService
+from app.services.system_service import SystemService
 from app.utils.dates import coerce_utc_datetime, utc_now
+
+
+@dataclass(frozen=True)
+class RefreshReport:
+    source_summary: str
+    sources: dict[str, str]
+    latest_indicator_at: datetime | None
 
 
 class DataRefreshService:
@@ -28,7 +42,7 @@ class DataRefreshService:
         self.fred_provider = FredProvider(settings.fred_api_key)
         self.market_provider = MarketProvider()
 
-    def refresh(self, session: Session, as_of: date | datetime | None = None) -> str:
+    def refresh(self, session: Session, as_of: date | datetime | None = None) -> RefreshReport:
         effective_date = as_of or utc_now()
         demo_history = generate_demo_history(effective_date, periods=self.settings.market_lookback_days)
 
@@ -42,24 +56,13 @@ class DataRefreshService:
             fallback_count = sum(1 for source in sources.values() if "fallback" in source)
             source_summary = "mixed-live" if live_count and fallback_count else "live" if live_count else "demo-fallback"
 
-        session.execute(delete(IndicatorSnapshot))
-        session.flush()
-
-        for code, points in history.items():
-            definition = INDICATOR_MAP[code]
-            for point in points:
-                session.add(
-                    IndicatorSnapshot(
-                        indicator_code=code,
-                        timestamp=point.timestamp,
-                        value=point.value,
-                        source=sources.get(code, source_summary),
-                        meta={"unit": definition.unit, "name": definition.name},
-                    )
-                )
-
-        session.commit()
-        return source_summary
+        self._persist_history(session=session, history=history, sources=sources)
+        latest_indicator_at = max((points[-1].timestamp for points in history.values() if points), default=None)
+        return RefreshReport(
+            source_summary=source_summary,
+            sources=sources,
+            latest_indicator_at=latest_indicator_at,
+        )
 
     def _build_demo_source_map(self, history: dict[str, list[SeriesPoint]]) -> dict[str, str]:
         return {
@@ -147,8 +150,43 @@ class DataRefreshService:
 
         effective_dt = coerce_utc_datetime(effective_date)
         latest_timestamp = series[-1].timestamp.astimezone(UTC)
-        max_staleness_days = 45 if code in {"cpi_yoy", "core_cpi_yoy", "unemployment_rate", "fed_funds_rate"} else 10
-        return (effective_dt.date() - latest_timestamp.date()).days <= max_staleness_days
+        return (effective_dt.date() - latest_timestamp.date()).days <= max_staleness_days(code)
+
+    def _persist_history(
+        self,
+        *,
+        session: Session,
+        history: dict[str, list[SeriesPoint]],
+        sources: dict[str, str],
+    ) -> None:
+        existing_rows = session.execute(
+            select(IndicatorSnapshot).where(IndicatorSnapshot.indicator_code.in_(list(history.keys())))
+        ).scalars().all()
+        existing_index = {(row.indicator_code, row.timestamp): row for row in existing_rows}
+
+        for code, points in history.items():
+            definition = INDICATOR_MAP[code]
+            source = sources.get(code, "unknown")
+            meta = {"unit": definition.unit, "name": definition.name}
+            for point in points:
+                existing = existing_index.get((code, point.timestamp))
+                if existing is None:
+                    session.add(
+                        IndicatorSnapshot(
+                            indicator_code=code,
+                            timestamp=point.timestamp,
+                            value=point.value,
+                            source=source,
+                            meta=meta,
+                        )
+                    )
+                    continue
+
+                existing.value = point.value
+                existing.source = source
+                existing.meta = meta
+
+        session.commit()
 
     def _transform_to_yoy(self, series: list[SeriesPoint]) -> list[SeriesPoint]:
         if len(series) <= 12:
@@ -170,9 +208,45 @@ def refresh_application_data(
 ) -> str:
     active_settings = settings or get_settings()
     with SessionLocal() as session:
-        source_summary = DataRefreshService(settings=active_settings).refresh(session=session, as_of=as_of)
-        hydrate_derived_tables(session=session)
-    return source_summary
+        refresh_run = RefreshRun(started_at=utc_now(), status="running", source_summary="pending")
+        session.add(refresh_run)
+        session.commit()
+        session.refresh(refresh_run)
+
+        try:
+            report = DataRefreshService(settings=active_settings).refresh(session=session, as_of=as_of)
+            hydrate_derived_tables(session=session)
+            system_status = SystemService(settings=active_settings).get_refresh_status(session=session)
+
+            refresh_run = session.get(RefreshRun, refresh_run.id)
+            if refresh_run is None:
+                raise ValueError("Refresh run record could not be reloaded.")
+
+            refresh_run.completed_at = utc_now()
+            refresh_run.latest_indicator_at = report.latest_indicator_at
+            refresh_run.status = "success"
+            refresh_run.source_summary = report.source_summary
+            refresh_run.source_details = report.sources
+            refresh_run.stale_indicators = [item.code for item in system_status.stale_indicators]
+            refresh_run.error_message = None
+            session.add(refresh_run)
+            session.flush()
+
+            AlertService(settings=active_settings).process_refresh_cycle(session=session, refresh_run=refresh_run)
+            session.commit()
+            return report.source_summary
+        except Exception as exc:
+            session.rollback()
+            failed_run = session.get(RefreshRun, refresh_run.id)
+            if failed_run is None:
+                failed_run = RefreshRun(id=refresh_run.id, started_at=refresh_run.started_at)
+            failed_run.completed_at = utc_now()
+            failed_run.status = "failed"
+            failed_run.source_summary = "failed"
+            failed_run.error_message = str(exc)[:500]
+            session.add(failed_run)
+            session.commit()
+            raise
 
 
 def bootstrap_application() -> None:
@@ -183,10 +257,14 @@ def bootstrap_application() -> None:
         has_data = session.scalar(select(func.count(IndicatorSnapshot.id))) or 0
         has_saved_theses = session.scalar(select(func.count(SavedThesis.id))) or 0
 
-        if settings.refresh_on_startup or not has_data:
-            DataRefreshService(settings=settings).refresh(session=session)
-        hydrate_derived_tables(session=session)
-        if not has_saved_theses:
+    if settings.refresh_on_startup or not has_data:
+        refresh_application_data(settings=settings)
+    else:
+        with SessionLocal() as session:
+            hydrate_derived_tables(session=session)
+
+    if not has_saved_theses:
+        with SessionLocal() as session:
             seed_demo_theses(session=session)
 
 
@@ -207,10 +285,9 @@ def hydrate_derived_tables(session: Session) -> None:
         return
 
     anchor_history = states["sp500"].history
-    recent_window = anchor_history[-56:] if len(anchor_history) >= 56 else anchor_history
-    anchor_dates = [record.timestamp for record in recent_window[::7]]
-    if recent_window and recent_window[-1].timestamp not in anchor_dates:
-        anchor_dates.append(recent_window[-1].timestamp)
+    anchor_dates = [record.timestamp for record in anchor_history[::7]]
+    if anchor_history and anchor_history[-1].timestamp not in anchor_dates:
+        anchor_dates.append(anchor_history[-1].timestamp)
 
     previous_regime: str | None = None
     for index, anchor_date in enumerate(anchor_dates):

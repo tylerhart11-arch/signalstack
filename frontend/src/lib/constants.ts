@@ -31,6 +31,12 @@ export const navigation: NavigationItem[] = [
     shortLabel: "Thesis",
     description: "Translate plain-English investment ideas into exposures and watch signals.",
   },
+  {
+    href: "/system",
+    label: "System",
+    shortLabel: "System",
+    description: "Monitor refresh health, manage alert thresholds, and review generated digests.",
+  },
 ];
 
 export const thesisSamples = [

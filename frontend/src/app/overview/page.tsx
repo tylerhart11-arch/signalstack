@@ -4,23 +4,28 @@ import { useEffect, useState } from "react";
 
 import { IndicatorGrid } from "@/components/overview/indicator-grid";
 import { MarketSummary } from "@/components/overview/market-summary";
+import { StaleDataBanner } from "@/components/system/stale-data-banner";
 import { Badge } from "@/components/ui/badge";
 import { LoadingPanel } from "@/components/ui/loading-panel";
 import { SectionHeader } from "@/components/ui/section-header";
-import { getOverview } from "@/lib/api";
+import { getOverview, getRefreshStatus } from "@/lib/api";
 import { formatTimestamp } from "@/lib/format";
-import { OverviewResponse } from "@/lib/types";
+import { OverviewResponse, RefreshStatusResponse } from "@/lib/types";
 
 export default function OverviewPage() {
   const [data, setData] = useState<OverviewResponse | null>(null);
+  const [refreshStatus, setRefreshStatus] = useState<RefreshStatusResponse | null>(null);
   const [search, setSearch] = useState("");
   const [activeCategory, setActiveCategory] = useState("All");
 
   useEffect(() => {
-    void getOverview().then(setData);
+    void Promise.all([getOverview(), getRefreshStatus()]).then(([overview, status]) => {
+      setData(overview);
+      setRefreshStatus(status);
+    });
   }, []);
 
-  if (!data) {
+  if (!data || !refreshStatus) {
     return (
       <LoadingPanel
         title="Loading market overview"
@@ -52,6 +57,17 @@ export default function OverviewPage() {
         action={
           <>
             <Badge tone="accent">Updated {formatTimestamp(data.as_of)}</Badge>
+            <Badge
+              tone={
+                refreshStatus.status === "fresh"
+                  ? "positive"
+                  : refreshStatus.status === "stale"
+                    ? "negative"
+                    : "warning"
+              }
+            >
+              {refreshStatus.status}
+            </Badge>
             {sources.map((source) => (
               <Badge
                 key={source}
@@ -60,10 +76,13 @@ export default function OverviewPage() {
                 {source}
               </Badge>
             ))}
+            <Badge tone="neutral">{refreshStatus.source_summary}</Badge>
             <Badge tone="neutral">{filteredIndicators.length} visible</Badge>
           </>
         }
       />
+
+      <StaleDataBanner status={refreshStatus} />
 
       <MarketSummary data={data} />
 

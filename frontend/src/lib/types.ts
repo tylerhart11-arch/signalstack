@@ -31,6 +31,39 @@ export interface OverviewResponse {
   indicators: IndicatorOverview[];
 }
 
+export interface StaleIndicator {
+  code: string;
+  name: string;
+  last_updated: string;
+  age_days: number;
+  source: string;
+  max_staleness_days: number;
+}
+
+export interface ProviderStatus {
+  provider: string;
+  status: string;
+  indicator_count: number;
+  live_count: number;
+  fallback_count: number;
+  demo_count: number;
+  mixed_count: number;
+  stale_count: number;
+}
+
+export interface RefreshStatusResponse {
+  mode: string;
+  status: string;
+  last_success_at?: string | null;
+  latest_indicator_at?: string | null;
+  source_summary: string;
+  next_scheduled_refresh: string;
+  stale_indicators: StaleIndicator[];
+  provider_statuses: ProviderStatus[];
+  last_digest_at?: string | null;
+  recent_alert_count: number;
+}
+
 export interface RegimeDriver {
   label: string;
   detail: string;
@@ -119,6 +152,28 @@ export interface SavedThesisResponse {
   interpreted_theme: string;
   result: ThesisResult;
   created_at: string;
+}
+
+export interface AlertConfig {
+  regime_change_enabled: boolean;
+  anomaly_severity_threshold: number;
+  digest_cadence: "manual" | "market_open" | "market_close" | "both";
+  updated_at?: string | null;
+}
+
+export interface AlertEvent {
+  id: number;
+  event_type: string;
+  title: string;
+  message: string;
+  severity?: number | null;
+  cadence?: string | null;
+  payload: Record<string, string | number | string[]>;
+  created_at: string;
+}
+
+export interface AlertHistoryResponse {
+  items: AlertEvent[];
 }
 
 export interface NavigationItem {

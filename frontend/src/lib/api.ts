@@ -1,6 +1,10 @@
 import {
+  AlertConfig,
+  AlertEvent,
+  AlertHistoryResponse,
   AnomalyResponse,
   OverviewResponse,
+  RefreshStatusResponse,
   RegimeCurrentResponse,
   RegimeHistoryResponse,
   SavedThesisResponse,
@@ -327,6 +331,119 @@ function buildMockSavedTheses(): SavedThesisResponse[] {
   ];
 }
 
+function buildMockRefreshStatus(): RefreshStatusResponse {
+  return {
+    mode: "local-first",
+    status: "degraded",
+    last_success_at: new Date().toISOString(),
+    latest_indicator_at: new Date().toISOString(),
+    source_summary: "mixed-live",
+    next_scheduled_refresh: new Date(Date.now() + 1000 * 60 * 45).toISOString(),
+    stale_indicators: [
+      {
+        code: "cpi_yoy",
+        name: "CPI YoY",
+        last_updated: new Date(Date.now() - 1000 * 60 * 60 * 24 * 34).toISOString(),
+        age_days: 34,
+        source: "live-fred",
+        max_staleness_days: 45,
+      },
+    ],
+    provider_statuses: [
+      {
+        provider: "fred",
+        status: "degraded",
+        indicator_count: 7,
+        live_count: 4,
+        fallback_count: 2,
+        demo_count: 0,
+        mixed_count: 1,
+        stale_count: 0,
+      },
+      {
+        provider: "yahoo",
+        status: "live",
+        indicator_count: 10,
+        live_count: 10,
+        fallback_count: 0,
+        demo_count: 0,
+        mixed_count: 0,
+        stale_count: 0,
+      },
+      {
+        provider: "derived",
+        status: "mixed",
+        indicator_count: 1,
+        live_count: 0,
+        fallback_count: 0,
+        demo_count: 0,
+        mixed_count: 1,
+        stale_count: 0,
+      },
+    ],
+    last_digest_at: new Date(Date.now() - 1000 * 60 * 90).toISOString(),
+    recent_alert_count: 3,
+  };
+}
+
+function buildMockAlertConfig(): AlertConfig {
+  return {
+    regime_change_enabled: true,
+    anomaly_severity_threshold: 75,
+    digest_cadence: "market_close",
+    updated_at: new Date().toISOString(),
+  };
+}
+
+function buildMockAlertHistory(): AlertHistoryResponse {
+  const items: AlertEvent[] = [
+    {
+      id: 1,
+      event_type: "digest",
+      title: "Close digest: Slowdown",
+      message:
+        "Slowdown is the active regime with mixed cross-asset confirmation. Credit and breadth still need attention, but no hard stale-data failure is present.",
+      severity: null,
+      cadence: "market_close",
+      payload: {
+        regime: "Slowdown",
+        source_summary: "mixed-live",
+        top_anomalies: "Equity tape outrunning credit confirmation",
+      },
+      created_at: new Date(Date.now() - 1000 * 60 * 90).toISOString(),
+    },
+    {
+      id: 2,
+      event_type: "regime_change",
+      title: "Regime shift: Slowdown",
+      message:
+        "SignalStack moved from Disinflationary Growth to Slowdown as labor softened and credit confirmation weakened.",
+      severity: 74,
+      cadence: null,
+      payload: {
+        current_regime: "Slowdown",
+        previous_regime: "Disinflationary Growth",
+      },
+      created_at: new Date(Date.now() - 1000 * 60 * 180).toISOString(),
+    },
+    {
+      id: 3,
+      event_type: "anomaly",
+      title: "Equity tape is outrunning credit confirmation",
+      message:
+        "Stocks are still grinding higher, but both high-yield and investment-grade spreads are widening.",
+      severity: 84,
+      cadence: null,
+      payload: {
+        rule_code: "equities_up_credit_worse",
+      },
+      created_at: new Date(Date.now() - 1000 * 60 * 220).toISOString(),
+    },
+  ];
+
+  return { items };
+}
+
 function getApiBaseUrl(): string {
   if (process.env.NEXT_PUBLIC_API_BASE_URL) {
     return process.env.NEXT_PUBLIC_API_BASE_URL;
@@ -418,4 +535,59 @@ export async function persistThesis(text: string): Promise<SavedThesisResponse> 
     method: "POST",
     body: JSON.stringify({ text }),
   });
+}
+
+export async function getRefreshStatus(): Promise<RefreshStatusResponse> {
+  try {
+    return await requestJson<RefreshStatusResponse>("/api/system/refresh-status");
+  } catch {
+    return buildMockRefreshStatus();
+  }
+}
+
+export async function getAlertConfig(): Promise<AlertConfig> {
+  try {
+    return await requestJson<AlertConfig>("/api/alerts/config");
+  } catch {
+    return buildMockAlertConfig();
+  }
+}
+
+export async function updateAlertConfig(config: AlertConfig): Promise<AlertConfig> {
+  try {
+    return await requestJson<AlertConfig>("/api/alerts/config", {
+      method: "PUT",
+      body: JSON.stringify(config),
+    });
+  } catch {
+    return {
+      ...config,
+      updated_at: new Date().toISOString(),
+    };
+  }
+}
+
+export async function getAlertHistory(): Promise<AlertHistoryResponse> {
+  try {
+    return await requestJson<AlertHistoryResponse>("/api/alerts/history");
+  } catch {
+    return buildMockAlertHistory();
+  }
+}
+
+export async function runDigest(): Promise<AlertEvent> {
+  try {
+    return await requestJson<AlertEvent>("/api/alerts/run-digest", {
+      method: "POST",
+      body: JSON.stringify({}),
+    });
+  } catch {
+    return {
+      ...buildMockAlertHistory().items[0],
+      id: Date.now(),
+      created_at: new Date().toISOString(),
+      cadence: "manual",
+      title: "Manual digest: Slowdown",
+    };
+  }
 }

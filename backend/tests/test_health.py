@@ -28,11 +28,17 @@ def test_health_endpoint_reports_database_status(tmp_path: Path) -> None:
     import app.models.regime_history as regime_history_module
     import app.models.anomaly_item as anomaly_item_module
     import app.models.saved_thesis as saved_thesis_module
+    import app.models.alert_config as alert_config_module
+    import app.models.alert_event as alert_event_module
+    import app.models.refresh_run as refresh_run_module
 
     importlib.reload(indicator_snapshot_module)
     importlib.reload(regime_history_module)
     importlib.reload(anomaly_item_module)
     importlib.reload(saved_thesis_module)
+    importlib.reload(alert_config_module)
+    importlib.reload(alert_event_module)
+    importlib.reload(refresh_run_module)
     import app.data.refresh as refresh_module
 
     importlib.reload(refresh_module)
