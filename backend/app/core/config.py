@@ -4,10 +4,24 @@ from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
+LOCAL_DEV_FRONTEND_ORIGIN_REGEX = (
+    r"^https?://("
+    r"localhost|127\.0\.0\.1|0\.0\.0\.0|"
+    r"10(?:\.\d{1,3}){3}|"
+    r"192\.168(?:\.\d{1,3}){2}|"
+    r"172\.(?:1[6-9]|2\d|3[0-1])(?:\.\d{1,3}){2}"
+    r")(?::\d+)?$"
+)
+
+
 class Settings(BaseSettings):
     app_name: str = Field(default="SignalStack API", validation_alias="APP_NAME")
     api_prefix: str = Field(default="/api", validation_alias="API_PREFIX")
     frontend_origin: str = Field(default="http://localhost:3000", validation_alias="FRONTEND_ORIGIN")
+    frontend_origin_regex: str | None = Field(
+        default=LOCAL_DEV_FRONTEND_ORIGIN_REGEX,
+        validation_alias="FRONTEND_ORIGIN_REGEX",
+    )
     database_url: str = Field(
         default="postgresql+psycopg://signalstack:signalstack@localhost:5432/signalstack",
         validation_alias="DATABASE_URL",

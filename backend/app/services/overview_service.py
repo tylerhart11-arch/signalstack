@@ -10,6 +10,7 @@ from sqlalchemy.orm import Session
 from app.data.mappers.indicator_mapper import FEATURED_INDICATORS, INDICATOR_MAP, IndicatorDefinition
 from app.models.indicator_snapshot import IndicatorSnapshot
 from app.schemas.overview import IndicatorOverview, OverviewResponse, OverviewSummary
+from app.utils.dates import coerce_utc_datetime
 
 
 @dataclass
@@ -103,7 +104,9 @@ class OverviewService:
         histories: dict[str, list[SnapshotRecord]] = {}
         sources: dict[str, str] = {}
         for row in rows:
-            histories.setdefault(row.indicator_code, []).append(SnapshotRecord(timestamp=row.timestamp, value=row.value))
+            histories.setdefault(row.indicator_code, []).append(
+                SnapshotRecord(timestamp=coerce_utc_datetime(row.timestamp), value=row.value)
+            )
             sources[row.indicator_code] = row.source
         return histories, sources
 

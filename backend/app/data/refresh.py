@@ -4,6 +4,8 @@ from dataclasses import dataclass
 from datetime import UTC, date, datetime
 
 from sqlalchemy import delete, func, select
+from sqlalchemy.dialects.postgresql import insert as postgresql_insert
+from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 from sqlalchemy.orm import Session
 
 from app.core.config import Settings, get_settings
@@ -27,6 +29,29 @@ from app.services.alert_service import AlertService
 from app.services.overview_service import OverviewService
 from app.services.system_service import SystemService
 from app.utils.dates import coerce_utc_datetime, utc_now
+
+
+HISTORICAL_ENGINE_REQUIRED_CODES = {
+    "cpi_yoy",
+    "core_cpi_yoy",
+    "unemployment_rate",
+    "s2s10s",
+    "hy_spread",
+    "ig_spread",
+    "sp500",
+    "qqq",
+    "russell2000",
+    "vix",
+    "copper",
+    "wti",
+    "gold",
+    "dxy",
+    "us2y",
+    "us10y",
+    "xlf",
+    "xle",
+    "iwm",
+}
 
 
 @dataclass(frozen=True)
@@ -57,7 +82,7 @@ class DataRefreshService:
             source_summary = "mixed-live" if live_count and fallback_count else "live" if live_count else "demo-fallback"
 
         self._persist_history(session=session, history=history, sources=sources)
-        latest_indicator_at = max((points[-1].timestamp for points in history.values() if points), default=None)
+        latest_indicator_at = max((coerce_utc_datetime(points[-1].timestamp) for points in history.values() if points), default=None)
         return RefreshReport(
             source_summary=source_summary,
             sources=sources,
@@ -159,27 +184,54 @@ class DataRefreshService:
         history: dict[str, list[SeriesPoint]],
         sources: dict[str, str],
     ) -> None:
+        payload: list[dict[str, object]] = []
+        for code, points in history.items():
+            definition = INDICATOR_MAP[code]
+            source = sources.get(code, "unknown")
+            meta = {"unit": definition.unit, "name": definition.name}
+            for point in points:
+                payload.append(
+                    {
+                        "indicator_code": code,
+                        "timestamp": coerce_utc_datetime(point.timestamp),
+                        "value": point.value,
+                        "source": source,
+                        "meta": meta,
+                    }
+                )
+
+        if not payload:
+            session.commit()
+            return
+
+        upsert_statement = self._build_snapshot_upsert_statement(session=session, payload=payload)
+        if upsert_statement is not None:
+            session.execute(upsert_statement)
+            session.commit()
+            return
+
         existing_rows = session.execute(
             select(IndicatorSnapshot).where(IndicatorSnapshot.indicator_code.in_(list(history.keys())))
         ).scalars().all()
-        existing_index = {(row.indicator_code, row.timestamp): row for row in existing_rows}
+        existing_index = {(row.indicator_code, coerce_utc_datetime(row.timestamp)): row for row in existing_rows}
 
         for code, points in history.items():
             definition = INDICATOR_MAP[code]
             source = sources.get(code, "unknown")
             meta = {"unit": definition.unit, "name": definition.name}
             for point in points:
-                existing = existing_index.get((code, point.timestamp))
+                normalized_timestamp = coerce_utc_datetime(point.timestamp)
+                existing = existing_index.get((code, normalized_timestamp))
                 if existing is None:
-                    session.add(
-                        IndicatorSnapshot(
-                            indicator_code=code,
-                            timestamp=point.timestamp,
-                            value=point.value,
-                            source=source,
-                            meta=meta,
-                        )
+                    snapshot = IndicatorSnapshot(
+                        indicator_code=code,
+                        timestamp=normalized_timestamp,
+                        value=point.value,
+                        source=source,
+                        meta=meta,
                     )
+                    session.add(snapshot)
+                    existing_index[(code, normalized_timestamp)] = snapshot
                     continue
 
                 existing.value = point.value
@@ -187,6 +239,26 @@ class DataRefreshService:
                 existing.meta = meta
 
         session.commit()
+
+    def _build_snapshot_upsert_statement(self, session: Session, payload: list[dict[str, object]]):
+        dialect_name = session.get_bind().dialect.name
+        table = IndicatorSnapshot.__table__
+
+        if dialect_name == "sqlite":
+            insert_statement = sqlite_insert(table).values(payload)
+        elif dialect_name == "postgresql":
+            insert_statement = postgresql_insert(table).values(payload)
+        else:
+            return None
+
+        return insert_statement.on_conflict_do_update(
+            index_elements=["indicator_code", "timestamp"],
+            set_={
+                "value": insert_statement.excluded.value,
+                "source": insert_statement.excluded.source,
+                "meta": insert_statement.excluded.meta,
+            },
+        )
 
     def _transform_to_yoy(self, series: list[SeriesPoint]) -> list[SeriesPoint]:
         if len(series) <= 12:
@@ -292,7 +364,7 @@ def hydrate_derived_tables(session: Session) -> None:
     previous_regime: str | None = None
     for index, anchor_date in enumerate(anchor_dates):
         point_in_time_states = overview_service.build_indicator_states(session=session, as_of=anchor_date)
-        if len(point_in_time_states) < 8:
+        if len(point_in_time_states) < 8 or not HISTORICAL_ENGINE_REQUIRED_CODES.issubset(point_in_time_states):
             continue
 
         evaluation = regime_engine.evaluate(states=point_in_time_states, as_of=anchor_date, previous_regime=previous_regime)

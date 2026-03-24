@@ -12,7 +12,7 @@ from app.models.alert_event import AlertEvent
 from app.models.refresh_run import RefreshRun
 from app.schemas.system import ProviderStatusResponse, RefreshStatusResponse, StaleIndicatorResponse
 from app.services.overview_service import OverviewService
-from app.utils.dates import utc_now
+from app.utils.dates import coerce_utc_datetime, utc_now
 
 
 class SystemService:
@@ -89,15 +89,24 @@ class SystemService:
         return RefreshStatusResponse(
             mode="local-first",
             status=self._overall_status(provider_statuses=provider_statuses, stale_indicators=stale_indicators),
-            last_success_at=latest_success.completed_at if latest_success is not None else latest_indicator_at,
-            latest_indicator_at=latest_success.latest_indicator_at if latest_success is not None else latest_indicator_at,
+            last_success_at=self._normalize_optional_datetime(latest_success.completed_at)
+            if latest_success is not None
+            else latest_indicator_at,
+            latest_indicator_at=self._normalize_optional_datetime(latest_success.latest_indicator_at)
+            if latest_success is not None
+            else latest_indicator_at,
             source_summary=latest_success.source_summary if latest_success is not None else self._derive_source_summary(provider_statuses),
             next_scheduled_refresh=next_refresh_at(now, self.settings),
             stale_indicators=sorted(stale_indicators, key=lambda item: (item.age_days, item.name), reverse=True),
             provider_statuses=provider_statuses,
-            last_digest_at=last_digest_at,
+            last_digest_at=self._normalize_optional_datetime(last_digest_at),
             recent_alert_count=int(recent_alert_count),
         )
+
+    def _normalize_optional_datetime(self, value):
+        if value is None:
+            return None
+        return coerce_utc_datetime(value)
 
     def _provider_status(self, bucket: dict[str, int]) -> str:
         if bucket["stale_count"] > 0:
