@@ -10,7 +10,7 @@ export function SectionHeader({
   action?: ReactNode;
 }) {
   return (
-    <div className="animate-fade-up flex flex-col gap-4 border-b border-shell-border/80 pb-6 xl:flex-row xl:items-end xl:justify-between">
+    <div className="animate-fade-up flex flex-col gap-4 border-b border-shell-border/70 pb-6 xl:flex-row xl:items-end xl:justify-between">
       <div className="max-w-3xl">
         <p className="text-[11px] uppercase tracking-[0.28em] text-shell-accent">SignalStack</p>
         <h1 className="mt-2 text-3xl font-semibold tracking-[-0.03em] text-shell-text sm:text-[2.15rem]">{title}</h1>

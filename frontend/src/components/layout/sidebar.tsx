@@ -33,7 +33,7 @@ export function Sidebar({
 
       <aside
         className={[
-          "fixed inset-y-3 left-3 z-40 flex w-[320px] flex-col rounded-[30px] border border-shell-border bg-shell-panel/95 p-5 shadow-shell transition duration-200 backdrop-blur-xl lg:sticky lg:top-6 lg:z-10 lg:h-[calc(100vh-48px)] lg:w-[280px] lg:translate-x-0",
+          "fixed inset-y-3 left-3 z-40 flex w-[320px] flex-col rounded-[30px] border border-shell-border bg-shell-panel/96 p-5 shadow-shell transition duration-200 backdrop-blur-xl lg:sticky lg:top-6 lg:z-10 lg:h-[calc(100vh-48px)] lg:w-[280px] lg:translate-x-0",
           mobileOpen ? "translate-x-0" : "-translate-x-[108%] lg:translate-x-0",
         ].join(" ")}
       >
@@ -53,7 +53,7 @@ export function Sidebar({
           <button
             type="button"
             onClick={() => setMobileOpen(false)}
-            className="rounded-full border border-shell-border bg-white/[0.03] px-3 py-2 text-xs uppercase tracking-[0.18em] text-shell-muted lg:hidden"
+            className="rounded-full border border-shell-border bg-shell-panelSoft/90 px-3 py-2 text-xs uppercase tracking-[0.18em] text-shell-muted lg:hidden"
           >
             Close
           </button>
@@ -70,8 +70,8 @@ export function Sidebar({
                 className={[
                   "block rounded-[24px] border px-4 py-3 transition",
                   active
-                    ? "border-shell-borderStrong bg-white/[0.06] shadow-inset"
-                    : "border-transparent bg-transparent text-shell-muted hover:border-shell-border hover:bg-white/[0.03] hover:text-shell-text",
+                    ? "border-shell-borderStrong bg-shell-panelRaised/70 shadow-inset"
+                    : "border-transparent bg-transparent text-shell-muted hover:border-shell-border hover:bg-shell-panelSoft/70 hover:text-shell-text",
                 ].join(" ")}
               >
                 <div className="flex items-center justify-between gap-3">
@@ -86,7 +86,7 @@ export function Sidebar({
           })}
         </nav>
 
-        <div className="mt-6 rounded-[24px] border border-shell-border bg-white/[0.03] p-4">
+        <div className="mt-6 rounded-[24px] border border-shell-border bg-shell-panelSoft/80 p-4">
           <p className="text-[11px] uppercase tracking-[0.25em] text-shell-muted">Market Status</p>
           <div className="mt-4 space-y-3">
             <div className="flex items-center justify-between gap-3 text-sm text-shell-muted">
@@ -107,7 +107,7 @@ export function Sidebar({
           </div>
         </div>
 
-        <div className="mt-auto rounded-[24px] border border-shell-border bg-gradient-to-br from-shell-accent/8 via-transparent to-shell-accentSoft/10 p-4">
+        <div className="mt-auto rounded-[24px] border border-shell-border bg-gradient-to-br from-shell-accent/8 via-shell-panelSoft/70 to-shell-accentSoft/12 p-4">
           <p className="text-[11px] uppercase tracking-[0.25em] text-shell-muted">Workflow</p>
           <p className="mt-2 text-sm leading-6 text-shell-muted">
             Start at Home for the daily pulse, then move into Overview, Regime, Anomalies, or Thesis when a signal deserves depth.

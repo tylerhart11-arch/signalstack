@@ -15,10 +15,10 @@ export function LoadingPanel({
         <p className="text-sm text-shell-muted">{description}</p>
         <div className="grid gap-3 sm:grid-cols-3">
           {Array.from({ length: 3 }).map((_, index) => (
-            <div key={index} className="h-20 rounded-[22px] border border-shell-border bg-white/[0.04]" />
+            <div key={index} className="h-20 rounded-[22px] border border-shell-border bg-shell-panelSoft/85" />
           ))}
         </div>
-        <div className="h-56 rounded-[24px] border border-shell-border bg-white/[0.04]" />
+        <div className="h-56 rounded-[24px] border border-shell-border bg-shell-panelSoft/85" />
       </div>
     </Card>
   );

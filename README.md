@@ -41,7 +41,7 @@ signalstack/
 Notes:
 
 - The first frontend/backend container boot installs dependencies inside the containers.
-- Demo data is enabled by default, so the app works even without `FRED_API_KEY`.
+- `FRED_API_KEY` is optional. When it is missing, the backend falls back to FRED's public CSV downloads for the same series before using demo data.
 
 ### Option B: Run on Host
 
@@ -88,6 +88,7 @@ Database:
 
 - Business logic lives in backend services and engines, not in route handlers.
 - Live data is loaded per series with demo fallback, so one failed provider does not blank the whole app.
+- Macro series can stay live without a configured `FRED_API_KEY` because the backend can use FRED's public CSV downloads for those same series.
 - The backend refreshes on startup and can also refresh itself hourly during market hours, honoring NYSE holidays and early closes when `SIGNALSTACK_EXCHANGE_CALENDAR=XNYS`.
 - Refresh runs are now persisted so the app can report last-success status, recent failures, and source quality without relying on in-memory state.
 - Single-user alert settings, anomaly/regime event history, and manual digests are available through the new `alerts` and `system` endpoints.

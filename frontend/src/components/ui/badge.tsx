@@ -3,7 +3,7 @@ import { ReactNode } from "react";
 type Tone = "neutral" | "accent" | "positive" | "warning" | "negative";
 
 const toneClasses: Record<Tone, string> = {
-  neutral: "border-shell-border bg-white/[0.04] text-shell-muted",
+  neutral: "border-shell-border bg-shell-panelRaised/70 text-shell-muted",
   accent: "border-shell-accent/25 bg-shell-accent/10 text-shell-accent",
   positive: "border-shell-success/30 bg-shell-success/10 text-shell-success",
   warning: "border-shell-warn/30 bg-shell-warn/10 text-shell-warn",

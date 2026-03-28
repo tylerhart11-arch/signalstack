@@ -53,12 +53,12 @@ export function Topbar({ onOpenNav }: { onOpenNav: () => void }) {
   const systemLabel = status ? status.status.replaceAll("_", " ") : "loading";
 
   return (
-    <div className="sticky top-0 z-20 flex items-center justify-between gap-4 rounded-t-[32px] border-b border-shell-border bg-shell-frame/92 px-4 py-4 backdrop-blur-xl sm:px-6 lg:px-8">
+    <div className="sticky top-0 z-20 flex items-center justify-between gap-4 rounded-t-[32px] border-b border-shell-border bg-shell-frame/96 px-4 py-4 backdrop-blur-xl sm:px-6 lg:px-8">
       <div className="flex items-center gap-3">
         <button
           type="button"
           onClick={onOpenNav}
-          className="rounded-full border border-shell-border bg-white/[0.03] px-3 py-2 text-xs font-medium uppercase tracking-[0.18em] text-shell-muted lg:hidden"
+          className="rounded-full border border-shell-border bg-shell-panelSoft/90 px-3 py-2 text-xs font-medium uppercase tracking-[0.18em] text-shell-muted lg:hidden"
         >
           Menu
         </button>
@@ -81,7 +81,7 @@ export function Topbar({ onOpenNav }: { onOpenNav: () => void }) {
         </Badge>
         <Link
           href="/system"
-          className="inline-flex items-center rounded-full border border-shell-border bg-white/[0.04] px-3 py-1.5 text-[11px] font-medium uppercase tracking-[0.16em] text-shell-text transition hover:border-shell-accent/30 hover:bg-shell-accent/10 hover:text-shell-accent"
+          className="inline-flex items-center rounded-full border border-shell-border bg-shell-panelSoft/85 px-3 py-1.5 text-[11px] font-medium uppercase tracking-[0.16em] text-shell-text transition hover:border-shell-accent/30 hover:bg-shell-accent/10 hover:text-shell-accent"
         >
           System desk
         </Link>

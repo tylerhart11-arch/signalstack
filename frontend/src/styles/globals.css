@@ -9,15 +9,18 @@
 html {
   scroll-behavior: smooth;
   background:
-    radial-gradient(circle at top, rgba(90, 200, 250, 0.08), transparent 28%),
-    radial-gradient(circle at bottom right, rgba(125, 224, 212, 0.08), transparent 22%),
-    #07111b;
+    radial-gradient(circle at top left, rgba(97, 214, 255, 0.1), transparent 24%),
+    radial-gradient(circle at bottom right, rgba(60, 215, 164, 0.08), transparent 18%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.02), transparent 24%),
+    #020202;
 }
 
 body {
   min-height: 100vh;
-  background: transparent;
-  color: #e6f0fa;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.012), transparent 18%),
+    transparent;
+  color: #f3f7fb;
   font-family: var(--font-sans);
   letter-spacing: -0.015em;
 }
@@ -43,35 +46,35 @@ a {
 }
 
 ::-webkit-scrollbar-track {
-  background: rgba(8, 18, 30, 0.72);
+  background: rgba(8, 10, 12, 0.92);
 }
 
 ::-webkit-scrollbar-thumb {
   border-radius: 999px;
-  border: 2px solid rgba(8, 18, 30, 0.72);
-  background: rgba(96, 130, 161, 0.55);
+  border: 2px solid rgba(8, 10, 12, 0.92);
+  background: rgba(141, 151, 163, 0.42);
 }
 
 ::selection {
-  background: rgba(90, 200, 250, 0.22);
+  background: rgba(97, 214, 255, 0.24);
 }
 
 :focus-visible {
-  outline: 2px solid rgba(90, 200, 250, 0.55);
+  outline: 2px solid rgba(97, 214, 255, 0.55);
   outline-offset: 2px;
 }
 
 [data-shell-panel="true"] {
   background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.02), transparent 22%),
-    rgba(15, 27, 43, 0.88);
+    linear-gradient(180deg, rgba(255, 255, 255, 0.03), transparent 20%),
+    rgba(11, 13, 16, 0.92);
 }
 
 [data-shell-grid="true"] {
   background-image:
-    linear-gradient(rgba(132, 161, 189, 0.08) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(132, 161, 189, 0.08) 1px, transparent 1px);
-  background-size: 48px 48px;
+    linear-gradient(rgba(141, 151, 163, 0.05) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(141, 151, 163, 0.05) 1px, transparent 1px);
+  background-size: 52px 52px;
 }
 
 @keyframes fade-up {

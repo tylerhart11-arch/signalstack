@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import UTC, date, datetime
+from itertools import islice
 
 from sqlalchemy import delete, func, select
 from sqlalchemy.dialects.postgresql import insert as postgresql_insert
@@ -184,6 +185,14 @@ class DataRefreshService:
         history: dict[str, list[SeriesPoint]],
         sources: dict[str, str],
     ) -> None:
+        indicator_codes = list(history.keys())
+        if indicator_codes:
+            # Each refresh rebuilds the active lookback window for every series, so
+            # we replace the stored history for those indicators instead of trying
+            # to merge around older demo rows or provider-specific date ranges.
+            session.execute(delete(IndicatorSnapshot).where(IndicatorSnapshot.indicator_code.in_(indicator_codes)))
+            session.flush()
+
         payload: list[dict[str, object]] = []
         for code, points in history.items():
             definition = INDICATOR_MAP[code]
@@ -204,14 +213,15 @@ class DataRefreshService:
             session.commit()
             return
 
-        upsert_statement = self._build_snapshot_upsert_statement(session=session, payload=payload)
-        if upsert_statement is not None:
-            session.execute(upsert_statement)
+        upsert_statements = self._build_snapshot_upsert_statements(session=session, payload=payload)
+        if upsert_statements is not None:
+            for upsert_statement in upsert_statements:
+                session.execute(upsert_statement)
             session.commit()
             return
 
         existing_rows = session.execute(
-            select(IndicatorSnapshot).where(IndicatorSnapshot.indicator_code.in_(list(history.keys())))
+            select(IndicatorSnapshot).where(IndicatorSnapshot.indicator_code.in_(indicator_codes))
         ).scalars().all()
         existing_index = {(row.indicator_code, coerce_utc_datetime(row.timestamp)): row for row in existing_rows}
 
@@ -240,25 +250,41 @@ class DataRefreshService:
 
         session.commit()
 
-    def _build_snapshot_upsert_statement(self, session: Session, payload: list[dict[str, object]]):
+    def _build_snapshot_upsert_statements(self, session: Session, payload: list[dict[str, object]]):
         dialect_name = session.get_bind().dialect.name
         table = IndicatorSnapshot.__table__
 
-        if dialect_name == "sqlite":
-            insert_statement = sqlite_insert(table).values(payload)
-        elif dialect_name == "postgresql":
-            insert_statement = postgresql_insert(table).values(payload)
-        else:
+        if dialect_name not in {"sqlite", "postgresql"}:
             return None
 
-        return insert_statement.on_conflict_do_update(
-            index_elements=["indicator_code", "timestamp"],
-            set_={
-                "value": insert_statement.excluded.value,
-                "source": insert_statement.excluded.source,
-                "meta": insert_statement.excluded.meta,
-            },
-        )
+        batch_size = 150 if dialect_name == "sqlite" else len(payload)
+        statements = []
+        for batch in self._chunk_payload(payload, batch_size=batch_size):
+            if dialect_name == "sqlite":
+                insert_statement = sqlite_insert(table).values(batch)
+            else:
+                insert_statement = postgresql_insert(table).values(batch)
+
+            statements.append(
+                insert_statement.on_conflict_do_update(
+                    index_elements=["indicator_code", "timestamp"],
+                    set_={
+                        "value": insert_statement.excluded.value,
+                        "source": insert_statement.excluded.source,
+                        "meta": insert_statement.excluded.meta,
+                    },
+                )
+            )
+
+        return statements
+
+    def _chunk_payload(self, payload: list[dict[str, object]], batch_size: int):
+        iterator = iter(payload)
+        while True:
+            batch = list(islice(iterator, batch_size))
+            if not batch:
+                break
+            yield batch
 
     def _transform_to_yoy(self, series: list[SeriesPoint]) -> list[SeriesPoint]:
         if len(series) <= 12:
@@ -321,7 +347,7 @@ def refresh_application_data(
             raise
 
 
-def bootstrap_application() -> None:
+def bootstrap_application() -> bool:
     Base.metadata.create_all(bind=engine)
     settings = get_settings()
 
@@ -329,15 +355,22 @@ def bootstrap_application() -> None:
         has_data = session.scalar(select(func.count(IndicatorSnapshot.id))) or 0
         has_saved_theses = session.scalar(select(func.count(SavedThesis.id))) or 0
 
-    if settings.refresh_on_startup or not has_data:
-        refresh_application_data(settings=settings)
-    else:
-        with SessionLocal() as session:
-            hydrate_derived_tables(session=session)
-
     if not has_saved_theses:
         with SessionLocal() as session:
             seed_demo_theses(session=session)
+
+    if not has_data:
+        bootstrap_settings = settings if settings.use_demo_data else settings.model_copy(update={"use_demo_data": True})
+        refresh_application_data(settings=bootstrap_settings)
+        return settings.refresh_on_startup and not settings.use_demo_data
+
+    if settings.refresh_on_startup:
+        return True
+
+    with SessionLocal() as session:
+        hydrate_derived_tables(session=session)
+
+    return False
 
 
 def hydrate_derived_tables(session: Session) -> None:

@@ -133,6 +133,96 @@ def test_hydrate_derived_tables_skips_early_anchor_dates_without_full_macro_hist
     assert regime_count > 0
 
 
+def test_sqlite_snapshot_upserts_are_chunked_to_avoid_variable_limit(tmp_path: Path) -> None:
+    modules = load_test_modules(tmp_path)
+    config_module = modules["config"]
+    database_module = modules["database"]
+    refresh_module = modules["refresh"]
+
+    refresh_module.Base.metadata.create_all(bind=refresh_module.engine)
+    service = refresh_module.DataRefreshService(settings=config_module.get_settings())
+    base_timestamp = datetime(2026, 1, 1, tzinfo=UTC)
+    payload = [
+        {
+            "indicator_code": "sp500",
+            "timestamp": base_timestamp + timedelta(days=index),
+            "value": float(index),
+            "source": "live-yahoo",
+            "meta": {"unit": "index", "name": "S&P 500"},
+        }
+        for index in range(7_000)
+    ]
+
+    with database_module.SessionLocal() as session:
+        statements = service._build_snapshot_upsert_statements(session=session, payload=payload)
+
+    assert statements is not None
+    assert len(statements) > 1
+
+
+def test_refresh_replaces_existing_indicator_history_when_live_series_is_shorter(tmp_path: Path) -> None:
+    modules = load_test_modules(tmp_path)
+    config_module = modules["config"]
+    database_module = modules["database"]
+    refresh_module = modules["refresh"]
+    indicator_snapshot_module = modules["indicator_snapshot"]
+
+    refresh_module.Base.metadata.create_all(bind=refresh_module.engine)
+    service = refresh_module.DataRefreshService(settings=config_module.get_settings())
+
+    demo_history = {
+        "cpi_yoy": [
+            refresh_module.SeriesPoint(timestamp=datetime(2026, 3, 1, tzinfo=UTC), value=3.2),
+            refresh_module.SeriesPoint(timestamp=datetime(2026, 3, 24, tzinfo=UTC), value=3.1),
+        ]
+    }
+    live_history = {
+        "cpi_yoy": [
+            refresh_module.SeriesPoint(timestamp=datetime(2025, 12, 1, tzinfo=UTC), value=3.4),
+            refresh_module.SeriesPoint(timestamp=datetime(2026, 1, 1, tzinfo=UTC), value=3.3),
+            refresh_module.SeriesPoint(timestamp=datetime(2026, 2, 1, tzinfo=UTC), value=3.2),
+        ]
+    }
+
+    with database_module.SessionLocal() as session:
+        service._persist_history(session=session, history=demo_history, sources={"cpi_yoy": "demo"})
+        service._persist_history(session=session, history=live_history, sources={"cpi_yoy": "live-fred"})
+
+        rows = session.execute(
+            select(indicator_snapshot_module.IndicatorSnapshot)
+            .where(indicator_snapshot_module.IndicatorSnapshot.indicator_code == "cpi_yoy")
+            .order_by(indicator_snapshot_module.IndicatorSnapshot.timestamp)
+        ).scalars().all()
+
+    assert [row.source for row in rows] == ["live-fred", "live-fred", "live-fred"]
+    assert rows[-1].timestamp == datetime(2026, 2, 1)
+
+
+def test_monthly_macro_series_are_treated_as_fresh_within_release_window(tmp_path: Path) -> None:
+    modules = load_test_modules(tmp_path)
+    config_module = modules["config"]
+    refresh_module = modules["refresh"]
+
+    service = refresh_module.DataRefreshService(settings=config_module.get_settings())
+    monthly_series = [
+        refresh_module.SeriesPoint(
+            timestamp=datetime(2025, 1, 1, tzinfo=UTC) + timedelta(days=31 * index),
+            value=4.8 - (index * 0.03),
+        )
+        for index in range(14)
+    ]
+    monthly_series[-1] = refresh_module.SeriesPoint(
+        timestamp=datetime(2026, 2, 1, tzinfo=UTC),
+        value=4.4,
+    )
+
+    assert service._is_series_usable(
+        "unemployment_rate",
+        monthly_series,
+        datetime(2026, 3, 24, tzinfo=UTC),
+    )
+
+
 def test_local_network_frontend_origin_is_allowed_for_preflight(tmp_path: Path) -> None:
     modules = load_test_modules(tmp_path)
     main_module = modules["main"]

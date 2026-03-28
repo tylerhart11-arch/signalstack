@@ -56,6 +56,10 @@ export default function SystemPage() {
           : "warning";
 
   async function handleSave() {
+    if (!data) {
+      return;
+    }
+
     setSaving(true);
     setNote(null);
 
@@ -172,7 +176,7 @@ export default function SystemPage() {
                         : current,
                     )
                   }
-                  className="h-5 w-5 rounded border-shell-border bg-transparent accent-[#7de0d4]"
+                  className="h-5 w-5 rounded border-shell-border bg-transparent accent-shell-accentSoft"
                 />
               </label>
 
@@ -200,7 +204,7 @@ export default function SystemPage() {
                           : current,
                       )
                     }
-                    className="w-full accent-[#5ac8fa]"
+                    className="w-full accent-shell-accent"
                   />
                   <Badge tone="accent">{data.config.anomaly_severity_threshold}</Badge>
                 </div>

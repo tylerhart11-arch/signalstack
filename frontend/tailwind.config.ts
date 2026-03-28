@@ -6,25 +6,25 @@ const config: Config = {
     extend: {
       colors: {
         shell: {
-          bg: "#07111B",
-          frame: "#0B1624",
-          panel: "#0F1B2B",
-          panelSoft: "#132234",
-          panelRaised: "#17293D",
-          border: "rgba(128, 160, 189, 0.18)",
-          borderStrong: "rgba(147, 181, 211, 0.3)",
-          text: "#E5EEF8",
-          muted: "#91A7BE",
-          accent: "#5AC8FA",
-          accentSoft: "#7DE0D4",
-          warn: "#F59E0B",
-          danger: "#F97373",
-          success: "#4ADE80"
+          bg: "#020202",
+          frame: "#07090C",
+          panel: "#0B0D10",
+          panelSoft: "#12161B",
+          panelRaised: "#181D24",
+          border: "rgba(255, 255, 255, 0.08)",
+          borderStrong: "rgba(97, 214, 255, 0.24)",
+          text: "#F3F7FB",
+          muted: "#8D97A3",
+          accent: "#61D6FF",
+          accentSoft: "#3CD7A4",
+          warn: "#F6B44F",
+          danger: "#FB7185",
+          success: "#3CD7A4"
         }
       },
       boxShadow: {
-        panel: "0 24px 80px rgba(2, 8, 23, 0.34)",
-        shell: "0 34px 110px rgba(2, 8, 23, 0.42)",
+        panel: "0 24px 80px rgba(0, 0, 0, 0.38)",
+        shell: "0 36px 120px rgba(0, 0, 0, 0.52)",
         inset: "inset 0 1px 0 rgba(255,255,255,0.04)"
       }
     }

@@ -17,7 +17,7 @@ export function Card({
     <section
       data-shell-panel="true"
       className={[
-        "rounded-[28px] border border-shell-border bg-shell-panel/88 p-5 shadow-panel shadow-black/20 backdrop-blur-xl sm:p-6",
+        "rounded-[28px] border border-shell-border bg-shell-panel/94 p-5 shadow-panel shadow-black/30 backdrop-blur-xl sm:p-6",
         className ?? "",
       ].join(" ")}
     >
