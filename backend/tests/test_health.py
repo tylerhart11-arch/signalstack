@@ -14,8 +14,7 @@ if str(ROOT) not in sys.path:
 def test_health_endpoint_reports_database_status(tmp_path: Path) -> None:
     db_path = tmp_path / "signalstack_health.db"
     os.environ["DATABASE_URL"] = f"sqlite:///{db_path.as_posix()}"
-    os.environ["SIGNALSTACK_USE_DEMO_DATA"] = "true"
-    os.environ["SIGNALSTACK_REFRESH_ON_STARTUP"] = "true"
+    os.environ["SIGNALSTACK_REFRESH_ON_STARTUP"] = "false"
 
     import app.core.config as config_module
 
@@ -39,9 +38,31 @@ def test_health_endpoint_reports_database_status(tmp_path: Path) -> None:
     importlib.reload(alert_config_module)
     importlib.reload(alert_event_module)
     importlib.reload(refresh_run_module)
+
     import app.data.refresh as refresh_module
 
     importlib.reload(refresh_module)
+
+    from app.data.mappers.indicator_mapper import INDICATOR_MAP
+    from app.data.providers.demo_provider import generate_demo_history
+
+    def fake_load_live_history(self, effective_date):
+        history = {
+            code: list(points)
+            for code, points in generate_demo_history(
+                effective_date,
+                periods=self.settings.market_lookback_days,
+            ).items()
+            if code in INDICATOR_MAP and INDICATOR_MAP[code].provider != "derived"
+        }
+        sources = {code: f"live-{INDICATOR_MAP[code].provider}" for code in history}
+        self._build_derived_series(history, sources)
+        return history, sources
+
+    refresh_module.DataRefreshService._load_live_history = fake_load_live_history
+    refresh_module.Base.metadata.create_all(bind=refresh_module.engine)
+    refresh_module.refresh_application_data(settings=config_module.get_settings())
+
     import app.main as main_module
 
     importlib.reload(main_module)

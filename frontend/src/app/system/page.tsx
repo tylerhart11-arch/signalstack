@@ -7,7 +7,15 @@ import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { LoadingPanel } from "@/components/ui/loading-panel";
 import { SectionHeader } from "@/components/ui/section-header";
-import { getAlertConfig, getAlertHistory, getRefreshStatus, runDigest, updateAlertConfig } from "@/lib/api";
+import { UnavailablePanel } from "@/components/ui/unavailable-panel";
+import {
+  describeApiError,
+  getAlertConfig,
+  getAlertHistory,
+  getRefreshStatus,
+  runDigest,
+  updateAlertConfig,
+} from "@/lib/api";
 import { formatTimestamp } from "@/lib/format";
 import { AlertConfig, AlertEvent, RefreshStatusResponse } from "@/lib/types";
 
@@ -19,24 +27,32 @@ type SystemPageState = {
 
 export default function SystemPage() {
   const [data, setData] = useState<SystemPageState | null>(null);
+  const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [runningDigest, setRunningDigest] = useState(false);
   const [note, setNote] = useState<string | null>(null);
 
-  useEffect(() => {
-    async function bootstrap() {
+  async function loadData() {
+    setError(null);
+
+    try {
       const [status, config, history] = await Promise.all([
         getRefreshStatus(),
         getAlertConfig(),
         getAlertHistory(),
       ]);
       setData({ status, config, history: history.items });
+    } catch (loadError) {
+      setError(describeApiError(loadError));
+      setData(null);
     }
+  }
 
-    void bootstrap();
+  useEffect(() => {
+    void loadData();
   }, []);
 
-  if (!data) {
+  if (!data && !error) {
     return (
       <LoadingPanel
         title="Loading system desk"
@@ -46,14 +62,34 @@ export default function SystemPage() {
     );
   }
 
+  if (!data) {
+    return (
+      <UnavailablePanel
+        title="System desk unavailable"
+        eyebrow="Automation"
+        description="System health and alert controls come directly from the live API. The latest live request failed."
+        error={error}
+        action={
+          <button
+            type="button"
+            onClick={() => void loadData()}
+            className="inline-flex items-center justify-center rounded-full border border-shell-border bg-white/[0.04] px-4 py-2 text-sm font-medium text-shell-text transition hover:border-shell-accent/30 hover:bg-shell-accent/10"
+          >
+            Retry live load
+          </button>
+        }
+      />
+    );
+  }
+
   const statusTone =
     data.status.status === "fresh"
       ? "positive"
       : data.status.status === "stale"
         ? "negative"
-        : data.status.status === "demo"
-          ? "neutral"
-          : "warning";
+        : data.status.status === "degraded"
+          ? "warning"
+          : "neutral";
 
   async function handleSave() {
     if (!data) {
@@ -67,6 +103,8 @@ export default function SystemPage() {
       const updated = await updateAlertConfig(data.config);
       setData((current) => (current ? { ...current, config: updated } : current));
       setNote("Alert settings saved.");
+    } catch (saveError) {
+      setNote(describeApiError(saveError));
     } finally {
       setSaving(false);
     }
@@ -89,6 +127,8 @@ export default function SystemPage() {
           : current,
       );
       setNote("Manual digest generated.");
+    } catch (digestError) {
+      setNote(describeApiError(digestError));
     } finally {
       setRunningDigest(false);
     }
@@ -98,7 +138,7 @@ export default function SystemPage() {
     <div className="space-y-8">
       <SectionHeader
         title="System Desk"
-        description="Single-user automation controls for refresh health, alert thresholds, and generated open/close summaries. This keeps the platform local-first while still surfacing the information that matters."
+        description="Single-user automation controls for refresh health, alert thresholds, and generated open/close summaries. The desk reports live-only status and never substitutes fake data."
         action={
           <>
             <Badge tone={statusTone}>{data.status.status}</Badge>
@@ -140,9 +180,11 @@ export default function SystemPage() {
                     <p className="mt-1 text-base font-semibold text-shell-text">{provider.status}</p>
                   </div>
                   <div className="flex flex-wrap gap-2">
-                    <Badge tone="positive">{provider.live_count} live</Badge>
-                    <Badge tone="warning">{provider.fallback_count + provider.mixed_count} degraded</Badge>
-                    <Badge tone="neutral">{provider.demo_count} demo</Badge>
+                    <Badge tone={provider.live_count ? "positive" : "neutral"}>
+                      {provider.live_count}/{provider.expected_count} live
+                    </Badge>
+                    {provider.stale_count ? <Badge tone="negative">{provider.stale_count} stale</Badge> : null}
+                    {!provider.live_count ? <Badge tone="warning">Unavailable</Badge> : null}
                   </div>
                 </div>
               </div>

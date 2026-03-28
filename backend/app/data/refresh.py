@@ -4,7 +4,7 @@ from dataclasses import dataclass
 from datetime import UTC, date, datetime
 from itertools import islice
 
-from sqlalchemy import delete, func, select
+from sqlalchemy import delete, select
 from sqlalchemy.dialects.postgresql import insert as postgresql_insert
 from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 from sqlalchemy.orm import Session
@@ -13,19 +13,15 @@ from app.core.config import Settings, get_settings
 from app.core.database import Base, SessionLocal, engine
 from app.data.freshness import max_staleness_days
 from app.data.mappers.indicator_mapper import INDICATOR_DEFINITIONS, INDICATOR_MAP
-from app.data.providers.demo_provider import SeriesPoint, generate_demo_history
+from app.data.providers.demo_provider import SeriesPoint
 from app.data.providers.fred_provider import FredProvider
 from app.data.providers.market_provider import MarketProvider
 from app.engines.anomaly_engine import AnomalyContext, AnomalyEngine
 from app.engines.regime_engine import RegimeEngine
-from app.engines.thesis_engine import ThesisEngine
-from app.models.alert_config import AlertConfig
-from app.models.alert_event import AlertEvent
 from app.models.anomaly_item import AnomalyItem
 from app.models.indicator_snapshot import IndicatorSnapshot
 from app.models.refresh_run import RefreshRun
 from app.models.regime_history import RegimeHistory
-from app.models.saved_thesis import SavedThesis
 from app.services.alert_service import AlertService
 from app.services.overview_service import OverviewService
 from app.services.system_service import SystemService
@@ -70,17 +66,10 @@ class DataRefreshService:
 
     def refresh(self, session: Session, as_of: date | datetime | None = None) -> RefreshReport:
         effective_date = as_of or utc_now()
-        demo_history = generate_demo_history(effective_date, periods=self.settings.market_lookback_days)
-
-        if self.settings.use_demo_data:
-            history = demo_history
-            sources = self._build_demo_source_map(history)
-            source_summary = "demo"
-        else:
-            history, sources = self._load_blended_history(effective_date=effective_date, demo_history=demo_history)
-            live_count = sum(1 for source in sources.values() if source.startswith("live"))
-            fallback_count = sum(1 for source in sources.values() if "fallback" in source)
-            source_summary = "mixed-live" if live_count and fallback_count else "live" if live_count else "demo-fallback"
+        history, sources = self._load_live_history(effective_date=effective_date)
+        live_count = sum(1 for source in sources.values() if source.startswith("live"))
+        expected_count = len(INDICATOR_DEFINITIONS)
+        source_summary = "live" if live_count >= expected_count else "partial-live"
 
         self._persist_history(session=session, history=history, sources=sources)
         latest_indicator_at = max((coerce_utc_datetime(points[-1].timestamp) for points in history.values() if points), default=None)
@@ -90,22 +79,12 @@ class DataRefreshService:
             latest_indicator_at=latest_indicator_at,
         )
 
-    def _build_demo_source_map(self, history: dict[str, list[SeriesPoint]]) -> dict[str, str]:
-        return {
-            code: "demo-derived" if INDICATOR_MAP[code].provider == "derived" else "demo"
-            for code in history
-            if code in INDICATOR_MAP
-        }
-
-    def _load_blended_history(
+    def _load_live_history(
         self,
         effective_date: date | datetime,
-        demo_history: dict[str, list[SeriesPoint]],
     ) -> tuple[dict[str, list[SeriesPoint]], dict[str, str]]:
-        # Load every series independently so one flaky provider does not force the
-        # whole app into demo mode.
-        history = {code: list(points) for code, points in demo_history.items() if code in INDICATOR_MAP}
-        sources = self._build_demo_source_map(history)
+        history: dict[str, list[SeriesPoint]] = {}
+        sources: dict[str, str] = {}
 
         for definition in INDICATOR_DEFINITIONS:
             if definition.provider == "derived":
@@ -114,11 +93,10 @@ class DataRefreshService:
             if self._is_series_usable(definition.code, live_points, effective_date):
                 history[definition.code] = live_points
                 sources[definition.code] = f"live-{definition.provider}"
-            else:
-                history[definition.code] = list(demo_history[definition.code])
-                sources[definition.code] = f"demo-fallback-{definition.provider}"
 
         self._build_derived_series(history, sources)
+        if not history:
+            raise ValueError("No live indicator history was returned by the configured providers.")
         return history, sources
 
     def _safe_fetch_live_series(self, provider: str, provider_id: str | None, transform: str | None) -> list[SeriesPoint]:
@@ -157,8 +135,7 @@ class DataRefreshService:
         ]
 
         if sources is not None:
-            underlying_sources = [sources.get("us2y", "unknown"), sources.get("us10y", "unknown")]
-            sources["s2s10s"] = "live-derived" if all(source.startswith("live") for source in underlying_sources) else "mixed-derived" if any(source.startswith("live") for source in underlying_sources) else "demo-derived"
+            sources["s2s10s"] = "live-derived"
 
     def _is_series_usable(self, code: str, series: list[SeriesPoint], effective_date: date | datetime) -> bool:
         if not series:
@@ -185,11 +162,20 @@ class DataRefreshService:
         history: dict[str, list[SeriesPoint]],
         sources: dict[str, str],
     ) -> None:
+        tracked_codes = list(INDICATOR_MAP.keys())
+        session.execute(
+            delete(IndicatorSnapshot).where(
+                IndicatorSnapshot.indicator_code.in_(tracked_codes),
+                ~IndicatorSnapshot.source.like("live%"),
+            )
+        )
+        session.flush()
+
         indicator_codes = list(history.keys())
         if indicator_codes:
             # Each refresh rebuilds the active lookback window for every series, so
             # we replace the stored history for those indicators instead of trying
-            # to merge around older demo rows or provider-specific date ranges.
+            # to merge around stale non-live rows or provider-specific date ranges.
             session.execute(delete(IndicatorSnapshot).where(IndicatorSnapshot.indicator_code.in_(indicator_codes)))
             session.flush()
 
@@ -350,27 +336,7 @@ def refresh_application_data(
 def bootstrap_application() -> bool:
     Base.metadata.create_all(bind=engine)
     settings = get_settings()
-
-    with SessionLocal() as session:
-        has_data = session.scalar(select(func.count(IndicatorSnapshot.id))) or 0
-        has_saved_theses = session.scalar(select(func.count(SavedThesis.id))) or 0
-
-    if not has_saved_theses:
-        with SessionLocal() as session:
-            seed_demo_theses(session=session)
-
-    if not has_data:
-        bootstrap_settings = settings if settings.use_demo_data else settings.model_copy(update={"use_demo_data": True})
-        refresh_application_data(settings=bootstrap_settings)
-        return settings.refresh_on_startup and not settings.use_demo_data
-
-    if settings.refresh_on_startup:
-        return True
-
-    with SessionLocal() as session:
-        hydrate_derived_tables(session=session)
-
-    return False
+    return settings.refresh_on_startup
 
 
 def hydrate_derived_tables(session: Session) -> None:
@@ -428,24 +394,4 @@ def hydrate_derived_tables(session: Session) -> None:
                     )
                 )
 
-    session.commit()
-
-
-def seed_demo_theses(session: Session) -> None:
-    demo_texts = [
-        "AI data centers will drive electricity demand higher",
-        "Higher-for-longer rates will pressure small caps",
-        "Home energy costs will continue rising",
-        "Credit stress will appear before equities react",
-    ]
-    engine = ThesisEngine()
-    for text in demo_texts:
-        result = engine.analyze(text)
-        session.add(
-            SavedThesis(
-                input_text=text,
-                interpreted_theme=result.interpreted_theme,
-                result=result.model_dump(),
-            )
-        )
     session.commit()

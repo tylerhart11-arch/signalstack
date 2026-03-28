@@ -28,7 +28,6 @@ services:
       API_PREFIX: /api
       FRONTEND_ORIGIN: ${FRONTEND_ORIGIN:-http://localhost:3000}
       DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-signalstack}:${POSTGRES_PASSWORD:-signalstack}@db:5432/${POSTGRES_DB:-signalstack}
-      SIGNALSTACK_USE_DEMO_DATA: ${SIGNALSTACK_USE_DEMO_DATA:-true}
       SIGNALSTACK_REFRESH_ON_STARTUP: ${SIGNALSTACK_REFRESH_ON_STARTUP:-true}
       SIGNALSTACK_BACKGROUND_REFRESH_ENABLED: ${SIGNALSTACK_BACKGROUND_REFRESH_ENABLED:-true}
       SIGNALSTACK_REFRESH_INTERVAL_HOURS: ${SIGNALSTACK_REFRESH_INTERVAL_HOURS:-1}
@@ -62,7 +61,7 @@ services:
       - ./frontend:/workspace/frontend
       - signalstack-node-modules:/workspace/frontend/node_modules
     environment:
-      NEXT_PUBLIC_API_BASE_URL: ${NEXT_PUBLIC_API_BASE_URL:-http://localhost:8000}
+      NEXT_PUBLIC_API_BASE_URL: ${NEXT_PUBLIC_API_BASE_URL:-http://127.0.0.1:8000}
     command: >
       sh -c "npm install &&
       npm run dev"

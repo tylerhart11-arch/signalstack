@@ -15,11 +15,9 @@ class StaleIndicatorResponse(BaseModel):
 class ProviderStatusResponse(BaseModel):
     provider: str
     status: str
+    expected_count: int
     indicator_count: int
     live_count: int = 0
-    fallback_count: int = 0
-    demo_count: int = 0
-    mixed_count: int = 0
     stale_count: int = 0
 
 

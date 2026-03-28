@@ -26,7 +26,6 @@ class Settings(BaseSettings):
         default="postgresql+psycopg://signalstack:signalstack@localhost:5432/signalstack",
         validation_alias="DATABASE_URL",
     )
-    use_demo_data: bool = Field(default=True, validation_alias="SIGNALSTACK_USE_DEMO_DATA")
     refresh_on_startup: bool = Field(default=True, validation_alias="SIGNALSTACK_REFRESH_ON_STARTUP")
     background_refresh_enabled: bool = Field(
         default=True,

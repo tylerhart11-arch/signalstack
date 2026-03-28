@@ -8,62 +8,41 @@ import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { LoadingPanel } from "@/components/ui/loading-panel";
 import { SectionHeader } from "@/components/ui/section-header";
-import { analyzeThesis, getSavedTheses, persistThesis } from "@/lib/api";
+import { UnavailablePanel } from "@/components/ui/unavailable-panel";
+import { analyzeThesis, describeApiError, getSavedTheses, persistThesis } from "@/lib/api";
 import { thesisSamples } from "@/lib/constants";
 import { formatTimestamp } from "@/lib/format";
 import { SavedThesisResponse, ThesisResult as ThesisResultType } from "@/lib/types";
-
-const LOCAL_STORAGE_KEY = "signalstack.savedTheses";
-
-function loadLocalTheses(): SavedThesisResponse[] {
-  if (typeof window === "undefined") {
-    return [];
-  }
-
-  try {
-    const raw = window.localStorage.getItem(LOCAL_STORAGE_KEY);
-    return raw ? (JSON.parse(raw) as SavedThesisResponse[]) : [];
-  } catch {
-    return [];
-  }
-}
-
-function saveLocalThesis(inputText: string, result: ThesisResultType): SavedThesisResponse {
-  const entry: SavedThesisResponse = {
-    id: Date.now(),
-    input_text: inputText,
-    interpreted_theme: result.interpreted_theme,
-    result,
-    created_at: new Date().toISOString(),
-  };
-
-  const current = loadLocalTheses();
-  const updated = [entry, ...current].slice(0, 12);
-  window.localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(updated));
-  return entry;
-}
 
 export default function ThesisPage() {
   const [input, setInput] = useState(thesisSamples[0]);
   const [result, setResult] = useState<ThesisResultType | null>(null);
   const [saved, setSaved] = useState<SavedThesisResponse[]>([]);
   const [bootstrapping, setBootstrapping] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [note, setNote] = useState<string | null>(null);
 
-  useEffect(() => {
-    async function bootstrap() {
+  async function loadData() {
+    setError(null);
+    setBootstrapping(true);
+
+    try {
       const [remote, analysis] = await Promise.all([getSavedTheses(), analyzeThesis(thesisSamples[0])]);
-      const merged = [...loadLocalTheses(), ...remote].sort(
-        (left, right) => new Date(right.created_at).getTime() - new Date(left.created_at).getTime(),
-      );
-      setSaved(merged.slice(0, 12));
+      setSaved(remote.slice(0, 12));
       setResult(analysis);
+    } catch (loadError) {
+      setError(describeApiError(loadError));
+      setSaved([]);
+      setResult(null);
+    } finally {
       setBootstrapping(false);
     }
+  }
 
-    void bootstrap();
+  useEffect(() => {
+    void loadData();
   }, []);
 
   async function handleAnalyze() {
@@ -71,6 +50,8 @@ export default function ThesisPage() {
     setNote(null);
     try {
       setResult(await analyzeThesis(input));
+    } catch (analyzeError) {
+      setNote(describeApiError(analyzeError));
     } finally {
       setLoading(false);
     }
@@ -88,10 +69,8 @@ export default function ThesisPage() {
       const savedResult = await persistThesis(input);
       setSaved((current) => [savedResult, ...current.filter((item) => item.id !== savedResult.id)].slice(0, 12));
       setNote("Saved to backend persistence.");
-    } catch {
-      const fallback = saveLocalThesis(input, result);
-      setSaved((current) => [fallback, ...current].slice(0, 12));
-      setNote("Backend unavailable, so the thesis was saved locally in your browser.");
+    } catch (saveError) {
+      setNote(`${describeApiError(saveError)} No local fallback is enabled.`);
     } finally {
       setSaving(false);
     }
@@ -120,6 +99,26 @@ export default function ThesisPage() {
         title="Loading thesis desk"
         eyebrow="Thesis Builder"
         description="Preparing the saved-thesis library and running the default sample analysis."
+      />
+    );
+  }
+
+  if (error) {
+    return (
+      <UnavailablePanel
+        title="Thesis desk unavailable"
+        eyebrow="Thesis Builder"
+        description="The thesis desk relies on the live backend for analysis and saved results. No browser-local fallback is enabled."
+        error={error}
+        action={
+          <button
+            type="button"
+            onClick={() => void loadData()}
+            className="inline-flex items-center justify-center rounded-full border border-shell-border bg-white/[0.04] px-4 py-2 text-sm font-medium text-shell-text transition hover:border-shell-accent/30 hover:bg-shell-accent/10"
+          >
+            Retry live load
+          </button>
+        }
       />
     );
   }
@@ -185,7 +184,7 @@ export default function ThesisPage() {
                   </button>
                 ))
               ) : (
-                <p className="text-sm text-shell-muted">Saved theses will appear here after you persist or locally save an analysis.</p>
+                <p className="text-sm text-shell-muted">Saved theses will appear here after you persist an analysis.</p>
               )}
             </div>
           </Card>

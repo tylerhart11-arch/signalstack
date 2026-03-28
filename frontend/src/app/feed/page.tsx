@@ -11,28 +11,61 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { LoadingPanel } from "@/components/ui/loading-panel";
 import { SectionHeader } from "@/components/ui/section-header";
-import { getAnomalies } from "@/lib/api";
+import { UnavailablePanel } from "@/components/ui/unavailable-panel";
+import { describeApiError, getAnomalies } from "@/lib/api";
 import { formatTimestamp, severityLabel } from "@/lib/format";
 import { AnomalyResponse } from "@/lib/types";
 
 export default function FeedPage() {
   const [data, setData] = useState<AnomalyResponse | null>(null);
+  const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [activeCategory, setActiveCategory] = useState("All");
   const [activeAsset, setActiveAsset] = useState("All");
   const [severityFloor, setSeverityFloor] = useState(0);
   const deferredSearch = useDeferredValue(search);
 
+  async function loadData() {
+    setError(null);
+
+    try {
+      setData(await getAnomalies());
+    } catch (loadError) {
+      setError(describeApiError(loadError));
+      setData(null);
+    }
+  }
+
   useEffect(() => {
-    void getAnomalies().then(setData);
+    void loadData();
   }, []);
 
-  if (!data) {
+  if (!data && !error) {
     return (
       <LoadingPanel
         title="Loading anomaly feed"
         eyebrow="Curiosity Scanner"
         description="Ranking cross-asset divergences and novelty signals."
+      />
+    );
+  }
+
+  if (!data) {
+    return (
+      <UnavailablePanel
+        title="Anomaly feed unavailable"
+        eyebrow="Curiosity Scanner"
+        description="The anomaly tape only renders live cross-asset signals. The latest live request failed."
+        error={error}
+        action={
+          <button
+            type="button"
+            onClick={() => void loadData()}
+            className="inline-flex items-center justify-center rounded-full border border-shell-border bg-white/[0.04] px-4 py-2 text-sm font-medium text-shell-text transition hover:border-shell-accent/30 hover:bg-shell-accent/10"
+          >
+            Retry live load
+          </button>
+        }
       />
     );
   }

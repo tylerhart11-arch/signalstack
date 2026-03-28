@@ -14,6 +14,6 @@ class IndicatorSnapshot(Base):
     indicator_code: Mapped[str] = mapped_column(String(64), index=True)
     timestamp: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True)
     value: Mapped[float] = mapped_column(Float)
-    source: Mapped[str] = mapped_column(String(32), default="demo")
+    source: Mapped[str] = mapped_column(String(32), default="unknown")
     meta: Mapped[dict] = mapped_column(JSON, default=dict)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())

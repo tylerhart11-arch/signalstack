@@ -5,7 +5,7 @@ import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 
 import { Badge } from "@/components/ui/badge";
-import { getRefreshStatus } from "@/lib/api";
+import { describeApiError, getRefreshStatus } from "@/lib/api";
 import { formatTimestamp } from "@/lib/format";
 import { navigation } from "@/lib/constants";
 import { RefreshStatusResponse } from "@/lib/types";
@@ -13,6 +13,7 @@ import { RefreshStatusResponse } from "@/lib/types";
 export function Topbar({ onOpenNav }: { onOpenNav: () => void }) {
   const pathname = usePathname();
   const [status, setStatus] = useState<RefreshStatusResponse | null>(null);
+  const [statusError, setStatusError] = useState<string | null>(null);
   const active =
     navigation.find((item) => {
       if (item.href === "/") {
@@ -25,9 +26,17 @@ export function Topbar({ onOpenNav }: { onOpenNav: () => void }) {
     let cancelled = false;
 
     async function loadStatus() {
-      const response = await getRefreshStatus();
-      if (!cancelled) {
-        setStatus(response);
+      try {
+        const response = await getRefreshStatus();
+        if (!cancelled) {
+          setStatus(response);
+          setStatusError(null);
+        }
+      } catch (loadError) {
+        if (!cancelled) {
+          setStatus(null);
+          setStatusError(describeApiError(loadError));
+        }
       }
     }
 
@@ -45,12 +54,12 @@ export function Topbar({ onOpenNav }: { onOpenNav: () => void }) {
   const systemTone =
     status?.status === "fresh"
       ? "positive"
-      : status?.status === "degraded" || status?.status === "mixed"
+      : status?.status === "degraded" || status?.status === "partial-live"
         ? "warning"
-        : status?.status === "stale"
+      : status?.status === "stale"
           ? "negative"
           : "neutral";
-  const systemLabel = status ? status.status.replaceAll("_", " ") : "loading";
+  const systemLabel = status ? status.status.replaceAll("_", " ") : statusError ? "status unavailable" : "loading";
 
   return (
     <div className="sticky top-0 z-20 flex items-center justify-between gap-4 rounded-t-[32px] border-b border-shell-border bg-shell-frame/96 px-4 py-4 backdrop-blur-xl sm:px-6 lg:px-8">
@@ -72,13 +81,14 @@ export function Topbar({ onOpenNav }: { onOpenNav: () => void }) {
       </div>
       <div className="hidden items-center gap-3 lg:flex">
         <Badge tone={systemTone}>{systemLabel}</Badge>
-        <Badge tone="neutral">{status?.mode ?? "local-first"}</Badge>
+        <Badge tone="neutral">{status?.mode ?? "live-only"}</Badge>
         <Badge tone={status?.stale_indicators.length ? "negative" : "neutral"}>
           {status?.stale_indicators.length ? `${status.stale_indicators.length} stale` : "No stale series"}
         </Badge>
         <Badge tone="accent">
           {status?.last_success_at ? `Updated ${formatTimestamp(status.last_success_at)}` : "Refresh pending"}
         </Badge>
+        {statusError ? <Badge tone="warning">API unavailable</Badge> : null}
         <Link
           href="/system"
           className="inline-flex items-center rounded-full border border-shell-border bg-shell-panelSoft/85 px-3 py-1.5 text-[11px] font-medium uppercase tracking-[0.16em] text-shell-text transition hover:border-shell-accent/30 hover:bg-shell-accent/10 hover:text-shell-accent"

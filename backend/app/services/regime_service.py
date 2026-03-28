@@ -15,6 +15,31 @@ class RegimeService:
     def get_current(self, session: Session) -> RegimeCurrentResponse:
         history = session.execute(select(RegimeHistory).order_by(RegimeHistory.as_of.desc())).scalars().all()
         states = self.overview_service.build_indicator_states(session=session)
+        required_codes = {
+            "cpi_yoy",
+            "core_cpi_yoy",
+            "unemployment_rate",
+            "s2s10s",
+            "hy_spread",
+            "ig_spread",
+            "sp500",
+            "qqq",
+            "russell2000",
+            "vix",
+            "copper",
+            "wti",
+            "gold",
+            "dxy",
+            "us2y",
+            "us10y",
+        }
+        missing_codes = sorted(code for code in required_codes if code not in states)
+        if missing_codes:
+            raise ValueError(
+                "Live regime inputs are not available yet. Missing: "
+                + ", ".join(missing_codes[:6])
+                + ("..." if len(missing_codes) > 6 else "")
+            )
         previous_regime = history[1].regime if len(history) > 1 else None
         return self.engine.evaluate(
             states=states,

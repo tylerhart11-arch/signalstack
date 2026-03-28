@@ -35,6 +35,6 @@ SignalStack is a personal market-intelligence terminal for top-down investors. T
 
 - Local-first and single-user
 - Transparent logic over black-box sophistication
-- Useful even in demo mode
+- Live-only data integrity over placeholder content
 - Terminal-inspired, but readable and professional
 - Easy to extend into watchlists, alerts, and portfolio features later

@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
@@ -12,4 +12,7 @@ router = APIRouter(prefix="/api")
 @router.get("/overview", response_model=OverviewResponse)
 def get_overview(session: Session = Depends(get_db)) -> OverviewResponse:
     service = OverviewService()
-    return service.build_overview(session=session)
+    try:
+        return service.build_overview(session=session)
+    except ValueError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc

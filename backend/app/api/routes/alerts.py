@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
@@ -29,4 +29,7 @@ def get_alert_history(
 
 @router.post("/run-digest", response_model=AlertEventResponse)
 def run_digest(session: Session = Depends(get_db)) -> AlertEventResponse:
-    return AlertService().run_manual_digest(session=session)
+    try:
+        return AlertService().run_manual_digest(session=session)
+    except ValueError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc

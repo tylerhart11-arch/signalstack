@@ -7,6 +7,7 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.core.config import Settings, get_settings
+from app.data.mappers.indicator_mapper import INDICATOR_DEFINITIONS
 from app.data.freshness import max_staleness_days, source_mode
 from app.models.alert_event import AlertEvent
 from app.models.refresh_run import RefreshRun
@@ -29,16 +30,20 @@ class SystemService:
             select(RefreshRun).where(RefreshRun.status == "success").order_by(RefreshRun.completed_at.desc(), RefreshRun.id.desc())
         ).scalars().first()
 
+        expected_counts: dict[str, int] = defaultdict(int)
+        for definition in INDICATOR_DEFINITIONS:
+            expected_counts[definition.provider] += 1
+
         provider_buckets: dict[str, dict[str, int]] = defaultdict(
             lambda: {
+                "expected_count": 0,
                 "indicator_count": 0,
                 "live_count": 0,
-                "fallback_count": 0,
-                "demo_count": 0,
-                "mixed_count": 0,
                 "stale_count": 0,
             }
         )
+        for provider, expected_count in expected_counts.items():
+            provider_buckets[provider]["expected_count"] = expected_count
         stale_indicators: list[StaleIndicatorResponse] = []
         latest_indicator_at = max((state.last_updated for state in states.values()), default=None)
 
@@ -49,8 +54,8 @@ class SystemService:
             bucket = provider_buckets[state.definition.provider]
             bucket["indicator_count"] += 1
             mode = source_mode(state.source)
-            if mode in {"live", "fallback", "demo", "mixed"}:
-                bucket[f"{mode}_count"] += 1
+            if mode == "live":
+                bucket["live_count"] += 1
             if is_stale:
                 bucket["stale_count"] += 1
                 stale_indicators.append(
@@ -68,11 +73,9 @@ class SystemService:
             ProviderStatusResponse(
                 provider=provider,
                 status=self._provider_status(bucket),
+                expected_count=bucket["expected_count"],
                 indicator_count=bucket["indicator_count"],
                 live_count=bucket["live_count"],
-                fallback_count=bucket["fallback_count"],
-                demo_count=bucket["demo_count"],
-                mixed_count=bucket["mixed_count"],
                 stale_count=bucket["stale_count"],
             )
             for provider, bucket in sorted(provider_buckets.items())
@@ -86,16 +89,23 @@ class SystemService:
             )
         ) or 0
 
+        derived_source_summary = self._derive_source_summary(provider_statuses)
+        last_live_refresh = (
+            latest_success
+            if latest_success is not None and latest_success.source_summary in {"live", "partial-live"}
+            else None
+        )
+
         return RefreshStatusResponse(
-            mode="local-first",
+            mode="live-only",
             status=self._overall_status(provider_statuses=provider_statuses, stale_indicators=stale_indicators),
-            last_success_at=self._normalize_optional_datetime(latest_success.completed_at)
-            if latest_success is not None
+            last_success_at=self._normalize_optional_datetime(last_live_refresh.completed_at)
+            if last_live_refresh is not None
             else latest_indicator_at,
-            latest_indicator_at=self._normalize_optional_datetime(latest_success.latest_indicator_at)
-            if latest_success is not None
+            latest_indicator_at=self._normalize_optional_datetime(last_live_refresh.latest_indicator_at)
+            if last_live_refresh is not None
             else latest_indicator_at,
-            source_summary=latest_success.source_summary if latest_success is not None else self._derive_source_summary(provider_statuses),
+            source_summary=last_live_refresh.source_summary if last_live_refresh is not None else derived_source_summary,
             next_scheduled_refresh=next_refresh_at(now, self.settings),
             stale_indicators=sorted(stale_indicators, key=lambda item: (item.age_days, item.name), reverse=True),
             provider_statuses=provider_statuses,
@@ -109,29 +119,31 @@ class SystemService:
         return coerce_utc_datetime(value)
 
     def _provider_status(self, bucket: dict[str, int]) -> str:
+        if bucket["live_count"] == 0:
+            return "unavailable"
         if bucket["stale_count"] > 0:
             return "stale"
-        if bucket["fallback_count"] > 0 or bucket["mixed_count"] > 0:
-            return "degraded"
-        if bucket["live_count"] == bucket["indicator_count"] and bucket["indicator_count"] > 0:
+        if bucket["live_count"] < bucket["expected_count"]:
+            return "partial-live"
+        if bucket["live_count"] == bucket["expected_count"]:
             return "live"
-        if bucket["demo_count"] == bucket["indicator_count"] and bucket["indicator_count"] > 0:
-            return "demo"
-        return "mixed"
+        return "unavailable"
 
     def _derive_source_summary(self, provider_statuses: list[ProviderStatusResponse]) -> str:
         if not provider_statuses:
-            return "unknown"
+            return "no-live-data"
         statuses = {item.status for item in provider_statuses}
         if statuses == {"live"}:
             return "live"
-        if statuses == {"demo"}:
-            return "demo"
-        if "degraded" in statuses:
-            return "mixed-live"
+        if statuses == {"unavailable"}:
+            return "no-live-data"
+        if "stale" in statuses:
+            return "stale-live"
+        if "partial-live" in statuses or "unavailable" in statuses:
+            return "partial-live"
         if "stale" in statuses:
             return "stale"
-        return "mixed"
+        return "unknown"
 
     def _overall_status(
         self,
@@ -141,10 +153,10 @@ class SystemService:
     ) -> str:
         if stale_indicators:
             return "stale"
-        if any(item.status == "degraded" for item in provider_statuses):
+        if provider_statuses and all(item.status == "unavailable" for item in provider_statuses):
+            return "unavailable"
+        if any(item.status in {"partial-live", "unavailable"} for item in provider_statuses):
             return "degraded"
         if provider_statuses and all(item.status == "live" for item in provider_statuses):
             return "fresh"
-        if provider_statuses and all(item.status == "demo" for item in provider_statuses):
-            return "demo"
-        return "mixed"
+        return "unavailable"

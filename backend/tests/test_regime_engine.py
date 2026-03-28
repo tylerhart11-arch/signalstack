@@ -19,7 +19,7 @@ def test_regime_engine_returns_supported_label() -> None:
         code: IndicatorState(
             definition=INDICATOR_MAP[code],
             history=[SnapshotRecord(timestamp=point.timestamp, value=point.value) for point in points],
-            source="demo",
+            source="live-test",
         )
         for code, points in history.items()
         if code in INDICATOR_MAP

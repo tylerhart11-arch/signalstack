@@ -36,9 +36,9 @@ Engines contain the decision logic and can evolve independently from the API:
 
 ### Data layer
 
-- `providers/`: live source adapters and deterministic demo data
+- `providers/`: live source adapters
 - `mappers/`: indicator definitions and series metadata
-- `refresh.py`: blended live/demo refresh plus derived-table hydration
+- `refresh.py`: live-only refresh plus derived-table hydration
 - `scheduler.py`: optional background loop for market-hours refresh while the API is running, with exchange-calendar support for holidays and half-days
 
 ## Frontend Design
@@ -47,9 +47,9 @@ Engines contain the decision logic and can evolve independently from the API:
 - `src/components/layout/`: shell, sidebar, topbar
 - `src/components/ui/`: reusable display primitives
 - `src/components/overview|regime|feed|thesis/`: feature components
-- `src/lib/api.ts`: API client with resilient fallback mocks
+- `src/lib/api.ts`: live-only API client with explicit request errors
 
-The frontend pages are mostly client-rendered so they can degrade gracefully if the API is not available at load time.
+The frontend pages are mostly client-rendered so they can surface explicit unavailable states if the live API is not reachable at load time.
 
 ## Persistence
 
@@ -59,5 +59,3 @@ PostgreSQL is the primary store for:
 - regime history
 - anomaly feed items
 - saved theses
-
-The frontend also uses local storage as a fallback for saved theses if the backend is unavailable.

@@ -15,7 +15,6 @@ if str(ROOT) not in sys.path:
 def load_test_modules(tmp_path: Path):
     db_path = tmp_path / "signalstack_refresh_flow.db"
     os.environ["DATABASE_URL"] = f"sqlite:///{db_path.as_posix()}"
-    os.environ["SIGNALSTACK_USE_DEMO_DATA"] = "true"
     os.environ["SIGNALSTACK_REFRESH_ON_STARTUP"] = "false"
     os.environ["SIGNALSTACK_BACKGROUND_REFRESH_ENABLED"] = "false"
 
@@ -52,6 +51,26 @@ def load_test_modules(tmp_path: Path):
     }
 
 
+def install_live_history_stub(refresh_module) -> None:
+    from app.data.mappers.indicator_mapper import INDICATOR_MAP
+    from app.data.providers.demo_provider import generate_demo_history
+
+    def fake_load_live_history(self, effective_date):
+        history = {
+            code: list(points)
+            for code, points in generate_demo_history(
+                effective_date,
+                periods=self.settings.market_lookback_days,
+            ).items()
+            if code in INDICATOR_MAP and INDICATOR_MAP[code].provider != "derived"
+        }
+        sources = {code: f"live-{INDICATOR_MAP[code].provider}" for code in history}
+        self._build_derived_series(history, sources)
+        return history, sources
+
+    refresh_module.DataRefreshService._load_live_history = fake_load_live_history
+
+
 def test_refresh_application_data_can_run_twice_without_duplicate_snapshot_failures(tmp_path: Path) -> None:
     modules = load_test_modules(tmp_path)
     config_module = modules["config"]
@@ -61,10 +80,11 @@ def test_refresh_application_data_can_run_twice_without_duplicate_snapshot_failu
     refresh_run_module = modules["refresh_run"]
 
     refresh_module.Base.metadata.create_all(bind=refresh_module.engine)
+    install_live_history_stub(refresh_module)
     settings = config_module.get_settings()
 
-    assert refresh_module.refresh_application_data(settings=settings) == "demo"
-    assert refresh_module.refresh_application_data(settings=settings) == "demo"
+    assert refresh_module.refresh_application_data(settings=settings) == "live"
+    assert refresh_module.refresh_application_data(settings=settings) == "live"
 
     with database_module.SessionLocal() as session:
         snapshot_count = session.scalar(select(func.count(indicator_snapshot_module.IndicatorSnapshot.id))) or 0
@@ -123,7 +143,13 @@ def test_hydrate_derived_tables_skips_early_anchor_dates_without_full_macro_hist
         ]
         history[code] = prefix + points
 
-    sources = service._build_demo_source_map(history)
+    sources = {
+        code: "live-derived"
+        if refresh_module.INDICATOR_MAP[code].provider == "derived"
+        else f"live-{refresh_module.INDICATOR_MAP[code].provider}"
+        for code in history
+        if code in refresh_module.INDICATOR_MAP
+    }
 
     with database_module.SessionLocal() as session:
         service._persist_history(session=session, history=history, sources=sources)

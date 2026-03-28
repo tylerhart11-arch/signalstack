@@ -20,7 +20,6 @@ def build_settings() -> Settings:
         api_prefix="/api",
         frontend_origin="http://localhost:3000",
         database_url="sqlite:///memory",
-        use_demo_data=True,
         refresh_on_startup=True,
         background_refresh_enabled=True,
         refresh_interval_hours=1,

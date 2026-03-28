@@ -96,7 +96,11 @@ class IndicatorState:
 
 class OverviewService:
     def load_indicator_histories(self, session: Session, as_of: datetime | None = None) -> tuple[dict[str, list[SnapshotRecord]], dict[str, str]]:
-        query = select(IndicatorSnapshot).order_by(IndicatorSnapshot.indicator_code, IndicatorSnapshot.timestamp)
+        query = (
+            select(IndicatorSnapshot)
+            .where(IndicatorSnapshot.source.like("live%"))
+            .order_by(IndicatorSnapshot.indicator_code, IndicatorSnapshot.timestamp)
+        )
         if as_of is not None:
             query = query.where(IndicatorSnapshot.timestamp <= as_of)
         rows = session.execute(query).scalars().all()
@@ -123,10 +127,12 @@ class OverviewService:
     def build_overview(self, session: Session) -> OverviewResponse:
         states = self.build_indicator_states(session=session)
         if not states:
-            raise ValueError("No indicator history available.")
+            raise ValueError("Live market data is not available yet.")
 
         indicators: list[IndicatorOverview] = []
         featured_states = [states[code] for code in FEATURED_INDICATORS if code in states]
+        if not featured_states:
+            raise ValueError("Featured live indicators are not available yet.")
         as_of = max(state.last_updated for state in featured_states)
 
         for state in featured_states:
@@ -286,6 +292,8 @@ class OverviewService:
         return context
 
     def _risk_tone(self, states: dict[str, IndicatorState]) -> str:
+        if not all(code in states for code in ("sp500", "russell2000", "vix")):
+            return "insufficient live data"
         sp = states["sp500"].delta_pct(21) or 0.0
         russell = states["russell2000"].delta_pct(21) or 0.0
         vix = states["vix"].delta_pct(21) or 0.0
@@ -298,6 +306,8 @@ class OverviewService:
         return "mixed"
 
     def _inflation_tone(self, states: dict[str, IndicatorState]) -> str:
+        if not all(code in states for code in ("cpi_yoy", "core_cpi_yoy")):
+            return "insufficient live data"
         cpi = states["cpi_yoy"].delta(1)
         core = states["core_cpi_yoy"].delta(1)
         if cpi < 0 and core < 0:
@@ -307,6 +317,8 @@ class OverviewService:
         return "sticky but stable"
 
     def _growth_tone(self, states: dict[str, IndicatorState]) -> str:
+        if not all(code in states for code in ("copper", "russell2000", "unemployment_rate")):
+            return "insufficient live data"
         copper = states["copper"].delta_pct(21) or 0.0
         small_caps = states["russell2000"].delta_pct(21) or 0.0
         unemployment = states["unemployment_rate"].delta(1)
@@ -317,6 +329,8 @@ class OverviewService:
         return "stable"
 
     def _rates_tone(self, states: dict[str, IndicatorState]) -> str:
+        if not all(code in states for code in ("us2y", "s2s10s")):
+            return "insufficient live data"
         two_year = states["us2y"].delta(21)
         slope = states["s2s10s"].delta(21)
         if two_year < 0 and slope > 0:

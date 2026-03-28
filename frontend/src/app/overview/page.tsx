@@ -8,32 +8,74 @@ import { StaleDataBanner } from "@/components/system/stale-data-banner";
 import { Badge } from "@/components/ui/badge";
 import { LoadingPanel } from "@/components/ui/loading-panel";
 import { SectionHeader } from "@/components/ui/section-header";
-import { getOverview, getRefreshStatus } from "@/lib/api";
+import { UnavailablePanel } from "@/components/ui/unavailable-panel";
+import { describeApiError, getOverview, getRefreshStatus } from "@/lib/api";
 import { formatTimestamp } from "@/lib/format";
 import { OverviewResponse, RefreshStatusResponse } from "@/lib/types";
 
 export default function OverviewPage() {
   const [data, setData] = useState<OverviewResponse | null>(null);
   const [refreshStatus, setRefreshStatus] = useState<RefreshStatusResponse | null>(null);
+  const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [activeCategory, setActiveCategory] = useState("All");
 
-  useEffect(() => {
-    void Promise.all([getOverview(), getRefreshStatus()]).then(([overview, status]) => {
+  async function loadData() {
+    setError(null);
+
+    try {
+      const [overview, status] = await Promise.all([getOverview(), getRefreshStatus()]);
       setData(overview);
       setRefreshStatus(status);
-    });
+    } catch (loadError) {
+      setError(describeApiError(loadError));
+      setData(null);
+      setRefreshStatus(null);
+    }
+  }
+
+  useEffect(() => {
+    void loadData();
   }, []);
 
-  if (!data || !refreshStatus) {
+  if ((!data || !refreshStatus) && !error) {
     return (
       <LoadingPanel
         title="Loading market overview"
         eyebrow="Market Dashboard"
-        description="Pulling the latest cross-asset snapshot and fallback context."
+        description="Pulling the latest cross-asset snapshot and live refresh status."
       />
     );
   }
+
+  if (!data || !refreshStatus) {
+    return (
+      <UnavailablePanel
+        title="Market overview unavailable"
+        eyebrow="Market Dashboard"
+        description="The overview page only renders live market data. The latest request did not complete successfully."
+        error={error}
+        action={
+          <button
+            type="button"
+            onClick={() => void loadData()}
+            className="inline-flex items-center justify-center rounded-full border border-shell-border bg-white/[0.04] px-4 py-2 text-sm font-medium text-shell-text transition hover:border-shell-accent/30 hover:bg-shell-accent/10"
+          >
+            Retry live load
+          </button>
+        }
+      />
+    );
+  }
+
+  const refreshTone =
+    refreshStatus.status === "fresh"
+      ? "positive"
+      : refreshStatus.status === "stale"
+        ? "negative"
+        : refreshStatus.status === "degraded"
+          ? "warning"
+          : "neutral";
 
   const sources = Array.from(new Set(data.indicators.map((indicator) => indicator.source)));
   const categories = ["All", ...Array.from(new Set(data.indicators.map((indicator) => indicator.category)))];
@@ -57,22 +99,9 @@ export default function OverviewPage() {
         action={
           <>
             <Badge tone="accent">Updated {formatTimestamp(data.as_of)}</Badge>
-            <Badge
-              tone={
-                refreshStatus.status === "fresh"
-                  ? "positive"
-                  : refreshStatus.status === "stale"
-                    ? "negative"
-                    : "warning"
-              }
-            >
-              {refreshStatus.status}
-            </Badge>
+            <Badge tone={refreshTone}>{refreshStatus.status}</Badge>
             {sources.map((source) => (
-              <Badge
-                key={source}
-                tone={source.includes("live") ? "positive" : source.includes("fallback") || source.includes("mock") ? "warning" : "neutral"}
-              >
+              <Badge key={source} tone={source.includes("live") ? "positive" : "warning"}>
                 {source}
               </Badge>
             ))}

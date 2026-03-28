@@ -18,7 +18,7 @@ export function AnomalyFeedList({
         <p className="text-sm leading-7 text-shell-muted">
           {hasActiveFilters
             ? `The page still has ${totalCount} anomaly ${totalCount === 1 ? "item" : "items"} available, but none match the current search and filter state. Try resetting the search, severity, category, or asset lens.`
-            : "The scanner did not find any threshold breaches in the current window. That usually means the live or demo tape is internally consistent."}
+            : "The scanner did not find any threshold breaches in the current window. That usually means the live tape is internally consistent."}
         </p>
       </Card>
     );

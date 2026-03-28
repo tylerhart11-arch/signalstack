@@ -8,7 +8,8 @@ import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { LoadingPanel } from "@/components/ui/loading-panel";
 import { SectionHeader } from "@/components/ui/section-header";
-import { getAnomalies, getCurrentRegime, getOverview, getRefreshStatus, getSavedTheses } from "@/lib/api";
+import { UnavailablePanel } from "@/components/ui/unavailable-panel";
+import { describeApiError, getAnomalies, getCurrentRegime, getOverview, getRefreshStatus, getSavedTheses } from "@/lib/api";
 import { formatTimestamp, severityLabel } from "@/lib/format";
 import { thesisSamples } from "@/lib/constants";
 import { AnomalyResponse, OverviewResponse, RefreshStatusResponse, RegimeCurrentResponse, SavedThesisResponse } from "@/lib/types";
@@ -26,9 +27,12 @@ const actionLinkClass =
 
 export default function HomePage() {
   const [data, setData] = useState<HomeData | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    async function bootstrap() {
+  async function loadData() {
+    setError(null);
+
+    try {
       const [overview, regime, anomalies, saved, refreshStatus] = await Promise.all([
         getOverview(),
         getCurrentRegime(),
@@ -38,12 +42,17 @@ export default function HomePage() {
       ]);
 
       setData({ overview, regime, anomalies, saved, refreshStatus });
+    } catch (loadError) {
+      setError(describeApiError(loadError));
+      setData(null);
     }
+  }
 
-    void bootstrap();
+  useEffect(() => {
+    void loadData();
   }, []);
 
-  if (!data) {
+  if (!data && !error) {
     return (
       <LoadingPanel
         title="Loading command center"
@@ -52,6 +61,31 @@ export default function HomePage() {
       />
     );
   }
+
+  if (!data) {
+    return (
+      <UnavailablePanel
+        title="Command center unavailable"
+        eyebrow="SignalStack Home"
+        description="The home screen depends on live overview, regime, anomaly, thesis, and system data. One or more of those live requests failed."
+        error={error}
+        action={
+          <button type="button" onClick={() => void loadData()} className={actionLinkClass}>
+            Retry live load
+          </button>
+        }
+      />
+    );
+  }
+
+  const refreshTone =
+    data.refreshStatus.status === "fresh"
+      ? "positive"
+      : data.refreshStatus.status === "stale"
+        ? "negative"
+        : data.refreshStatus.status === "degraded"
+          ? "warning"
+          : "neutral";
 
   const overviewSources = Array.from(new Set(data.overview.indicators.map((indicator) => indicator.source)));
   const topAnomaly = data.anomalies.items[0];
@@ -71,17 +105,7 @@ export default function HomePage() {
         action={
           <>
             <Badge tone="accent">Updated {formatTimestamp(data.overview.as_of)}</Badge>
-            <Badge
-              tone={
-                data.refreshStatus.status === "fresh"
-                  ? "positive"
-                  : data.refreshStatus.status === "stale"
-                    ? "negative"
-                    : "warning"
-              }
-            >
-              {data.refreshStatus.status}
-            </Badge>
+            <Badge tone={refreshTone}>{data.refreshStatus.status}</Badge>
             {overviewSources.slice(0, 2).map((source) => (
               <Badge key={source} tone={source.includes("live") ? "positive" : "warning"}>
                 {source}

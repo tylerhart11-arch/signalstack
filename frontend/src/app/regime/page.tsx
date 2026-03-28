@@ -9,27 +9,60 @@ import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { LoadingPanel } from "@/components/ui/loading-panel";
 import { SectionHeader } from "@/components/ui/section-header";
-import { getCurrentRegime, getRegimeHistory } from "@/lib/api";
+import { UnavailablePanel } from "@/components/ui/unavailable-panel";
+import { describeApiError, getCurrentRegime, getRegimeHistory } from "@/lib/api";
 import { formatTimestamp, metricLabel } from "@/lib/format";
 import { RegimeCurrentResponse, RegimeHistoryResponse } from "@/lib/types";
 
 export default function RegimePage() {
   const [current, setCurrent] = useState<RegimeCurrentResponse | null>(null);
   const [history, setHistory] = useState<RegimeHistoryResponse | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    void Promise.all([getCurrentRegime(), getRegimeHistory()]).then(([currentResponse, historyResponse]) => {
+  async function loadData() {
+    setError(null);
+
+    try {
+      const [currentResponse, historyResponse] = await Promise.all([getCurrentRegime(), getRegimeHistory()]);
       setCurrent(currentResponse);
       setHistory(historyResponse);
-    });
+    } catch (loadError) {
+      setError(describeApiError(loadError));
+      setCurrent(null);
+      setHistory(null);
+    }
+  }
+
+  useEffect(() => {
+    void loadData();
   }, []);
 
-  if (!current || !history) {
+  if ((!current || !history) && !error) {
     return (
       <LoadingPanel
         title="Loading regime engine"
         eyebrow="Macro Classification"
         description="Scoring inflation, labor, credit, curve shape, and risk appetite."
+      />
+    );
+  }
+
+  if (!current || !history) {
+    return (
+      <UnavailablePanel
+        title="Regime engine unavailable"
+        eyebrow="Macro Classification"
+        description="The regime engine requires the full live macro and market input set. Those live inputs are not available yet."
+        error={error}
+        action={
+          <button
+            type="button"
+            onClick={() => void loadData()}
+            className="inline-flex items-center justify-center rounded-full border border-shell-border bg-white/[0.04] px-4 py-2 text-sm font-medium text-shell-text transition hover:border-shell-accent/30 hover:bg-shell-accent/10"
+          >
+            Retry live load
+          </button>
+        }
       />
     );
   }

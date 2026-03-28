@@ -7,7 +7,7 @@ SignalStack is a personal financial analysis platform for top-down market work. 
 - a curiosity/anomaly feed
 - a thesis-to-exposure engine
 
-The repo is organized as a local-first monorepo. Live market and macro APIs are optional; the app will still boot with realistic demo data if they are unavailable.
+The repo is organized as a local-first monorepo with live-only data behavior. If the API cannot reach live market or macro sources, the UI shows an unavailable state instead of rendering mock data.
 
 ## Stack
 
@@ -15,7 +15,7 @@ The repo is organized as a local-first monorepo. Live market and macro APIs are 
 - Backend: FastAPI, SQLAlchemy
 - Database: PostgreSQL
 - Infra: Docker Compose
-- Data: FRED, Yahoo Finance, deterministic demo fallback
+- Data: FRED, Yahoo Finance
 
 ## Repo Layout
 
@@ -41,7 +41,7 @@ signalstack/
 Notes:
 
 - The first frontend/backend container boot installs dependencies inside the containers.
-- `FRED_API_KEY` is optional. When it is missing, the backend falls back to FRED's public CSV downloads for the same series before using demo data.
+- `FRED_API_KEY` is optional. When it is missing, the backend falls back to FRED's public CSV downloads for the same series.
 
 ### Option B: Run on Host
 
@@ -87,12 +87,12 @@ Database:
 ## Development Notes
 
 - Business logic lives in backend services and engines, not in route handlers.
-- Live data is loaded per series with demo fallback, so one failed provider does not blank the whole app.
+- SignalStack is live-only. If live data is unavailable, the API responds with explicit unavailable errors and the frontend shows honest empty states instead of fallback content.
 - Macro series can stay live without a configured `FRED_API_KEY` because the backend can use FRED's public CSV downloads for those same series.
 - The backend refreshes on startup and can also refresh itself hourly during market hours, honoring NYSE holidays and early closes when `SIGNALSTACK_EXCHANGE_CALENDAR=XNYS`.
 - Refresh runs are now persisted so the app can report last-success status, recent failures, and source quality without relying on in-memory state.
 - Single-user alert settings, anomaly/regime event history, and manual digests are available through the new `alerts` and `system` endpoints.
-- The frontend API layer also falls back to realistic mock responses if the backend is unavailable.
+- Non-live indicator snapshots are ignored by the live query path and are overwritten during successful live refreshes, so stale demo artifacts do not surface in the UI.
 - The regime, anomaly, and thesis engines are intentionally transparent so you can edit the logic directly.
 
 ## Testing

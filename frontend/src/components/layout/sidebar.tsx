@@ -92,17 +92,17 @@ export function Sidebar({
             <div className="flex items-center justify-between gap-3 text-sm text-shell-muted">
               <span>Mode</span>
               <span className="rounded-full border border-shell-border px-2 py-1 font-mono text-[11px] uppercase tracking-[0.18em] text-shell-text">
-                Local-first
+                Live-only
               </span>
             </div>
             <div className="flex items-center justify-between gap-3 text-sm text-shell-muted">
-              <span>Data fallback</span>
-              <span className="rounded-full border border-shell-warn/30 bg-shell-warn/10 px-2 py-1 font-mono text-[11px] uppercase tracking-[0.18em] text-shell-warn">
-                Enabled
+              <span>Fallbacks</span>
+              <span className="rounded-full border border-shell-success/30 bg-shell-success/10 px-2 py-1 font-mono text-[11px] uppercase tracking-[0.18em] text-shell-success">
+                Off
               </span>
             </div>
             <p className="text-sm leading-6 text-shell-muted">
-              Live providers are optional. SignalStack continues to render a realistic analyst workflow when providers are unavailable.
+              SignalStack only renders live API output. If providers are unavailable, the UI shows an explicit unavailable state instead of mock content.
             </p>
           </div>
         </div>

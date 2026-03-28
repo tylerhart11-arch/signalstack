@@ -43,11 +43,9 @@ export interface StaleIndicator {
 export interface ProviderStatus {
   provider: string;
   status: string;
+  expected_count: number;
   indicator_count: number;
   live_count: number;
-  fallback_count: number;
-  demo_count: number;
-  mixed_count: number;
   stale_count: number;
 }
 

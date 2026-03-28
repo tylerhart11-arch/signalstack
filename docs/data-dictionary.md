@@ -7,7 +7,7 @@
 - `indicator_code`: internal code for each tracked series
 - `timestamp`: observation time
 - `value`: normalized numeric value
-- `source`: `live-*`, `demo`, or `demo-fallback-*`
+- `source`: `live-*` for provider-backed series or `live-derived` for computed series
 - `meta`: display metadata such as unit and label
 
 ### `regime_history`

@@ -12,6 +12,8 @@ def source_mode(source: str) -> str:
     normalized = source.lower()
     if normalized.startswith("live"):
         return "live"
+    if normalized == "unknown":
+        return "unknown"
     if "fallback" in normalized:
         return "fallback"
     if normalized.startswith("mixed"):

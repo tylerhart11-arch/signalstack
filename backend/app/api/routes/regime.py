@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
@@ -11,7 +11,10 @@ router = APIRouter(prefix="/api/regime")
 
 @router.get("/current", response_model=RegimeCurrentResponse)
 def get_current_regime(session: Session = Depends(get_db)) -> RegimeCurrentResponse:
-    return RegimeService().get_current(session=session)
+    try:
+        return RegimeService().get_current(session=session)
+    except ValueError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
 
 
 @router.get("/history", response_model=RegimeHistoryResponse)
