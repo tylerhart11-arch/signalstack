@@ -11,6 +11,8 @@ import {
   ThesisResult,
 } from "@/lib/types";
 
+const LOCAL_API_HOSTS = new Set(["localhost", "127.0.0.1", "0.0.0.0"]);
+
 function spark(start: number, end: number, count = 18, wobble = 0.05): number[] {
   return Array.from({ length: count }, (_, index) => {
     const progress = index / Math.max(1, count - 1);
@@ -333,11 +335,11 @@ function buildMockSavedTheses(): SavedThesisResponse[] {
 
 function buildMockRefreshStatus(): RefreshStatusResponse {
   return {
-    mode: "local-first",
-    status: "degraded",
+    mode: "mock",
+    status: "mock",
     last_success_at: new Date().toISOString(),
     latest_indicator_at: new Date().toISOString(),
-    source_summary: "mixed-live",
+    source_summary: "mock",
     next_scheduled_refresh: new Date(Date.now() + 1000 * 60 * 45).toISOString(),
     stale_indicators: [
       {
@@ -352,32 +354,32 @@ function buildMockRefreshStatus(): RefreshStatusResponse {
     provider_statuses: [
       {
         provider: "fred",
-        status: "degraded",
+        status: "mock",
         indicator_count: 7,
-        live_count: 4,
-        fallback_count: 2,
-        demo_count: 0,
-        mixed_count: 1,
+        live_count: 0,
+        fallback_count: 0,
+        demo_count: 7,
+        mixed_count: 0,
         stale_count: 0,
       },
       {
         provider: "yahoo",
-        status: "live",
+        status: "mock",
         indicator_count: 10,
-        live_count: 10,
+        live_count: 0,
         fallback_count: 0,
-        demo_count: 0,
+        demo_count: 10,
         mixed_count: 0,
         stale_count: 0,
       },
       {
         provider: "derived",
-        status: "mixed",
+        status: "mock",
         indicator_count: 1,
         live_count: 0,
         fallback_count: 0,
-        demo_count: 0,
-        mixed_count: 1,
+        demo_count: 1,
+        mixed_count: 0,
         stale_count: 0,
       },
     ],
@@ -445,13 +447,25 @@ function buildMockAlertHistory(): AlertHistoryResponse {
 }
 
 function getApiBaseUrl(): string {
-  if (process.env.NEXT_PUBLIC_API_BASE_URL) {
-    return process.env.NEXT_PUBLIC_API_BASE_URL;
-  }
+  const configuredBaseUrl = process.env.NEXT_PUBLIC_API_BASE_URL?.trim();
+
   if (typeof window !== "undefined") {
-    return `${window.location.protocol}//${window.location.hostname}:8000`;
+    if (!configuredBaseUrl) {
+      return `${window.location.protocol}//${window.location.hostname}:8000`;
+    }
+
+    try {
+      const configuredUrl = new URL(configuredBaseUrl);
+      if (LOCAL_API_HOSTS.has(configuredUrl.hostname) && !LOCAL_API_HOSTS.has(window.location.hostname)) {
+        return `${configuredUrl.protocol}//${window.location.hostname}:${configuredUrl.port || "8000"}`;
+      }
+      return configuredBaseUrl;
+    } catch {
+      return `${window.location.protocol}//${window.location.hostname}:8000`;
+    }
   }
-  return "http://localhost:8000";
+
+  return configuredBaseUrl || "http://127.0.0.1:8000";
 }
 
 async function requestJson<T>(path: string, init?: RequestInit): Promise<T> {
