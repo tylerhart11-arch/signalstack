@@ -1,8 +1,14 @@
 import importlib
 import os
 import sys
+<<<<<<< ours
+<<<<<<< ours
 import threading
 import time
+=======
+>>>>>>> theirs
+=======
+>>>>>>> theirs
 from datetime import UTC, datetime
 from pathlib import Path
 
@@ -140,6 +146,8 @@ def test_ensure_daily_refresh_skips_when_last_success_is_same_market_day(tmp_pat
 
     assert called["count"] == 0
     assert len(success_runs) == 1
+<<<<<<< ours
+<<<<<<< ours
 
 
 def test_ensure_daily_refresh_only_runs_once_for_concurrent_requests(tmp_path: Path) -> None:
@@ -212,3 +220,7 @@ def test_ensure_daily_refresh_only_runs_once_for_concurrent_requests(tmp_path: P
     assert called["count"] == 1
     assert len(success_runs) == 2
     assert success_runs[-1].completed_at == datetime(2026, 4, 1, 14, 5)
+=======
+>>>>>>> theirs
+=======
+>>>>>>> theirs

@@ -1,7 +1,13 @@
 from __future__ import annotations
 
 from datetime import datetime
+<<<<<<< ours
+<<<<<<< ours
 from threading import Lock
+=======
+>>>>>>> theirs
+=======
+>>>>>>> theirs
 from zoneinfo import ZoneInfo
 
 from sqlalchemy import select
@@ -13,9 +19,15 @@ from app.models.refresh_run import RefreshRun
 from app.utils.dates import utc_now
 
 
+<<<<<<< ours
+<<<<<<< ours
 _daily_refresh_lock = Lock()
 
 
+=======
+>>>>>>> theirs
+=======
+>>>>>>> theirs
 def _latest_successful_refresh(session: Session) -> RefreshRun | None:
     return session.execute(
         select(RefreshRun)
@@ -24,6 +36,8 @@ def _latest_successful_refresh(session: Session) -> RefreshRun | None:
     ).scalars().first()
 
 
+<<<<<<< ours
+<<<<<<< ours
 def _reset_session_state(session: Session) -> None:
     # The guard only runs on read routes, so clearing any open transaction is safe
     # and prevents SQLite readers from blocking the writer that performs the refresh.
@@ -61,3 +75,24 @@ def ensure_daily_refresh(session: Session, settings: Settings | None = None, *, 
         _reset_session_state(session)
         refresh_application_data(settings=active_settings)
         _reset_session_state(session)
+=======
+=======
+>>>>>>> theirs
+def ensure_daily_refresh(session: Session, settings: Settings | None = None, *, now: datetime | None = None) -> None:
+    active_settings = settings or get_settings()
+    market_tz = ZoneInfo(active_settings.market_timezone)
+    reference_now = now or utc_now()
+    latest_success = _latest_successful_refresh(session)
+
+    if latest_success is None or latest_success.completed_at is None:
+        refresh_application_data(settings=active_settings)
+        return
+
+    last_completed_local_date = latest_success.completed_at.astimezone(market_tz).date()
+    current_local_date = reference_now.astimezone(market_tz).date()
+    if last_completed_local_date < current_local_date:
+        refresh_application_data(settings=active_settings)
+<<<<<<< ours
+>>>>>>> theirs
+=======
+>>>>>>> theirs
