@@ -270,7 +270,9 @@ class OverviewService:
                 return "cooling toward target"
             if state.latest > 3:
                 return "sticky inflation"
-            return "re-acceleration risk"
+            if trend_1m_direction == "rising":
+                return "re-acceleration risk"
+            return "stabilizing near target"
         if code == "unemployment_rate":
             if trend_1m_direction == "rising" and state.latest >= 4.2:
                 return "slack building"
