@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useMemo } from "react";
 
 import { DriverList } from "@/components/regime/driver-list";
 import { RegimeHero } from "@/components/regime/regime-hero";
@@ -10,32 +10,23 @@ import { Card } from "@/components/ui/card";
 import { LoadingPanel } from "@/components/ui/loading-panel";
 import { SectionHeader } from "@/components/ui/section-header";
 import { UnavailablePanel } from "@/components/ui/unavailable-panel";
-import { describeApiError, getCurrentRegime, getRegimeHistory } from "@/lib/api";
+import { getCurrentRegime, getRegimeHistory } from "@/lib/api";
 import { formatTimestamp, metricLabel } from "@/lib/format";
+import { useLivePageData } from "@/lib/use-live-page-data";
 import { RegimeCurrentResponse, RegimeHistoryResponse } from "@/lib/types";
 
 export default function RegimePage() {
-  const [current, setCurrent] = useState<RegimeCurrentResponse | null>(null);
-  const [history, setHistory] = useState<RegimeHistoryResponse | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const loader = useMemo(
+    () => async (): Promise<{ current: RegimeCurrentResponse; history: RegimeHistoryResponse }> => {
+      const [current, history] = await Promise.all([getCurrentRegime(), getRegimeHistory()]);
+      return { current, history };
+    },
+    [],
+  );
 
-  async function loadData() {
-    setError(null);
-
-    try {
-      const [currentResponse, historyResponse] = await Promise.all([getCurrentRegime(), getRegimeHistory()]);
-      setCurrent(currentResponse);
-      setHistory(historyResponse);
-    } catch (loadError) {
-      setError(describeApiError(loadError));
-      setCurrent(null);
-      setHistory(null);
-    }
-  }
-
-  useEffect(() => {
-    void loadData();
-  }, []);
+  const { data: payload, error, loadData } = useLivePageData(loader);
+  const current = payload?.current ?? null;
+  const history = payload?.history ?? null;
 
   if ((!current || !history) && !error) {
     return (

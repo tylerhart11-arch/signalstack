@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useMemo, useState } from "react";
 
 import { IndicatorGrid } from "@/components/overview/indicator-grid";
 import { MarketSummary } from "@/components/overview/market-summary";
@@ -9,34 +9,26 @@ import { Badge } from "@/components/ui/badge";
 import { LoadingPanel } from "@/components/ui/loading-panel";
 import { SectionHeader } from "@/components/ui/section-header";
 import { UnavailablePanel } from "@/components/ui/unavailable-panel";
-import { describeApiError, getOverview, getRefreshStatus } from "@/lib/api";
+import { getOverview, getRefreshStatus } from "@/lib/api";
 import { formatTimestamp } from "@/lib/format";
+import { useLivePageData } from "@/lib/use-live-page-data";
 import { OverviewResponse, RefreshStatusResponse } from "@/lib/types";
 
 export default function OverviewPage() {
-  const [data, setData] = useState<OverviewResponse | null>(null);
-  const [refreshStatus, setRefreshStatus] = useState<RefreshStatusResponse | null>(null);
-  const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [activeCategory, setActiveCategory] = useState("All");
 
-  async function loadData() {
-    setError(null);
-
-    try {
+  const loader = useMemo(
+    () => async (): Promise<{ overview: OverviewResponse; status: RefreshStatusResponse }> => {
       const [overview, status] = await Promise.all([getOverview(), getRefreshStatus()]);
-      setData(overview);
-      setRefreshStatus(status);
-    } catch (loadError) {
-      setError(describeApiError(loadError));
-      setData(null);
-      setRefreshStatus(null);
-    }
-  }
+      return { overview, status };
+    },
+    [],
+  );
 
-  useEffect(() => {
-    void loadData();
-  }, []);
+  const { data: payload, error, loadData } = useLivePageData(loader);
+  const data = payload?.overview ?? null;
+  const refreshStatus = payload?.status ?? null;
 
   if ((!data || !refreshStatus) && !error) {
     return (

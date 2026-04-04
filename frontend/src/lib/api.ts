@@ -75,52 +75,67 @@ async function readErrorDetail(response: Response): Promise<string> {
     : `Request failed with status ${response.status}.`;
 }
 
-async function requestJson<T>(path: string, init?: RequestInit): Promise<T> {
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 8_000);
+const REQUEST_TIMEOUT_MS = 8_000;
+const MAX_REQUEST_ATTEMPTS = 3;
 
-  try {
-    const response = await fetch(`${getApiBaseUrl()}${path}`, {
-      ...init,
-      headers: {
-        "Content-Type": "application/json",
-        ...(init?.headers ?? {}),
-      },
-      cache: "no-store",
-      signal: controller.signal,
-    });
-
-    if (!response.ok) {
-      throw new ApiError(await readErrorDetail(response), {
-        path,
-        status: response.status,
-      });
-    }
-
-    return (await response.json()) as T;
-  } catch (error) {
-    if (error instanceof ApiError) {
-      throw error;
-    }
-
-    if (error instanceof DOMException && error.name === "AbortError") {
-      throw new ApiError("The live API timed out before it responded.", {
-        path,
-      });
-    }
-
-    if (error instanceof Error) {
-      throw new ApiError(error.message || "Could not reach the live API.", {
-        path,
-      });
-    }
-
-    throw new ApiError("Could not reach the live API.", {
-      path,
-    });
-  } finally {
-    clearTimeout(timeout);
+function shouldRetry(error: unknown): boolean {
+  if (error instanceof ApiError) {
+    return error.status === null || error.status >= 500 || error.status === 429;
   }
+  return true;
+}
+
+function delay(milliseconds: number): Promise<void> {
+  return new Promise((resolve) => {
+    setTimeout(resolve, milliseconds);
+  });
+}
+
+async function requestJson<T>(path: string, init?: RequestInit): Promise<T> {
+  for (let attempt = 1; attempt <= MAX_REQUEST_ATTEMPTS; attempt += 1) {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+
+    try {
+      const response = await fetch(`${getApiBaseUrl()}${path}`, {
+        ...init,
+        headers: {
+          "Content-Type": "application/json",
+          ...(init?.headers ?? {}),
+        },
+        cache: "no-store",
+        signal: controller.signal,
+      });
+
+      if (!response.ok) {
+        throw new ApiError(await readErrorDetail(response), {
+          path,
+          status: response.status,
+        });
+      }
+
+      return (await response.json()) as T;
+    } catch (error) {
+      const apiError =
+        error instanceof ApiError
+          ? error
+          : error instanceof DOMException && error.name === "AbortError"
+            ? new ApiError("The live API timed out before it responded.", { path })
+            : error instanceof Error
+              ? new ApiError(error.message || "Could not reach the live API.", { path })
+              : new ApiError("Could not reach the live API.", { path });
+
+      if (attempt === MAX_REQUEST_ATTEMPTS || !shouldRetry(apiError)) {
+        throw apiError;
+      }
+
+      await delay(250 * attempt);
+    } finally {
+      clearTimeout(timeout);
+    }
+  }
+
+  throw new ApiError("Could not reach the live API.", { path });
 }
 
 export function describeApiError(error: unknown): string {

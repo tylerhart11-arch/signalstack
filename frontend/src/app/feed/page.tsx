@@ -1,6 +1,6 @@
 "use client";
 
-import { useDeferredValue, useEffect, useState } from "react";
+import { useDeferredValue, useState } from "react";
 
 import { AnomalyFeedList } from "@/components/feed/anomaly-feed-list";
 import {
@@ -12,33 +12,17 @@ import { Badge } from "@/components/ui/badge";
 import { LoadingPanel } from "@/components/ui/loading-panel";
 import { SectionHeader } from "@/components/ui/section-header";
 import { UnavailablePanel } from "@/components/ui/unavailable-panel";
-import { describeApiError, getAnomalies } from "@/lib/api";
+import { getAnomalies } from "@/lib/api";
 import { formatTimestamp, severityLabel } from "@/lib/format";
-import { AnomalyResponse } from "@/lib/types";
+import { useLivePageData } from "@/lib/use-live-page-data";
 
 export default function FeedPage() {
-  const [data, setData] = useState<AnomalyResponse | null>(null);
-  const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState("");
+  const { data, error, loadData } = useLivePageData(getAnomalies);
   const [activeCategory, setActiveCategory] = useState("All");
   const [activeAsset, setActiveAsset] = useState("All");
   const [severityFloor, setSeverityFloor] = useState(0);
   const deferredSearch = useDeferredValue(search);
-
-  async function loadData() {
-    setError(null);
-
-    try {
-      setData(await getAnomalies());
-    } catch (loadError) {
-      setError(describeApiError(loadError));
-      setData(null);
-    }
-  }
-
-  useEffect(() => {
-    void loadData();
-  }, []);
 
   if (!data && !error) {
     return (
