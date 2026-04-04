@@ -141,8 +141,6 @@ class SystemService:
             return "stale-live"
         if "partial-live" in statuses or "unavailable" in statuses:
             return "partial-live"
-        if "stale" in statuses:
-            return "stale"
         return "unknown"
 
     def _overall_status(

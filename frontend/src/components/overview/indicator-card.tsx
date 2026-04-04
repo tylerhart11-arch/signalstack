@@ -6,12 +6,16 @@ import { IndicatorOverview } from "@/lib/types";
 
 import { MiniSparkline } from "./mini-sparkline";
 
-function toneFromDirection(direction: string): "positive" | "warning" | "negative" {
+// These indicators have inverse semantics: rising = bad (stress/risk-off)
+const RISING_IS_NEGATIVE = new Set(["vix", "hy_spread", "ig_spread", "cpi_yoy", "core_cpi_yoy", "unemployment_rate"]);
+
+function toneFromDirection(direction: string, code: string): "positive" | "warning" | "negative" {
+  const inverse = RISING_IS_NEGATIVE.has(code);
   if (direction === "rising") {
-    return "positive";
+    return inverse ? "negative" : "positive";
   }
   if (direction === "falling") {
-    return "negative";
+    return inverse ? "positive" : "negative";
   }
   return "warning";
 }
@@ -24,7 +28,7 @@ export function IndicatorCard({ indicator }: { indicator: IndicatorOverview }) {
     <Card
       title={indicator.name}
       eyebrow={indicator.category}
-      action={<Badge tone={toneFromDirection(indicator.trend_1m_direction)}>{indicator.interpretation}</Badge>}
+      action={<Badge tone={toneFromDirection(indicator.trend_1m_direction, indicator.code)}>{indicator.interpretation}</Badge>}
     >
       <div className="space-y-4">
         <div className="flex items-start justify-between gap-4">
